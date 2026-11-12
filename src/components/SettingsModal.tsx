@@ -3,6 +3,7 @@ import type { UserSettings, LibraryItem } from '../types/library';
 import { storage } from '../services/storage';
 import { queueWorker } from '../services/queueWorker';
 import { registerBackButtonHandler, setupStatusBar, triggerHaptic } from '../native/bridge';
+import { ConfirmModal } from './ConfirmModal';
 import {
   X,
   Key,
@@ -48,8 +49,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [returnDelaySeconds, setReturnDelaySeconds] = useState(1);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const showFeedback = (msg: string) => {
+    setFeedbackMessage(msg);
+    setTimeout(() => setFeedbackMessage(null), 3000);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -116,8 +124,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       a.download = `drop-library-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      showFeedback('Backup exported successfully');
     } catch (err) {
-      alert('Export failed: ' + String(err));
+      showFeedback('Export failed: ' + String(err));
     }
   };
 
@@ -129,20 +138,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const text = await file.text();
       const count = await storage.importBackup(text);
       triggerHaptic('success');
-      alert(`Successfully imported ${count} items!`);
+      showFeedback(`Successfully imported ${count} items!`);
     } catch (err) {
-      alert('Import failed: ' + String(err));
+      showFeedback('Import failed: ' + String(err));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleClearAll = async () => {
-    if (window.confirm('Are you sure you want to delete ALL items from your library? This cannot be undone.')) {
-      triggerHaptic('warning');
-      await storage.clearAllItems();
-      alert('Library cleared.');
-    }
+  const handleConfirmClearAll = async () => {
+    triggerHaptic('warning');
+    await storage.clearAllItems();
+    setShowClearConfirm(false);
+    showFeedback('Library completely cleared.');
   };
 
   const pendingCount = items.filter((i) => i.status === 'pending').length;
@@ -427,13 +435,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <button
               type="button"
-              onClick={handleClearAll}
-              className="w-full py-2 px-3 rounded-xl text-xs text-rose-400 hover:bg-rose-500/10 flex items-center justify-center space-x-1.5 transition-colors mt-1"
+              onClick={() => setShowClearConfirm(true)}
+              className="w-full py-2 px-3 rounded-xl text-xs text-rose-400 hover:bg-rose-500/10 flex items-center justify-center space-x-1.5 transition-colors mt-1 border border-rose-500/20"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Clear Entire Library</span>
             </button>
           </div>
+
+          {/* Feedback banner */}
+          {feedbackMessage && (
+            <div className="p-2.5 rounded-xl bg-white/[0.08] border border-white/20 text-xs text-center text-white font-medium animate-in fade-in duration-150">
+              {feedbackMessage}
+            </div>
+          )}
 
           {/* Save Button */}
           <div className="pt-2">
@@ -453,6 +468,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* OLED Clear All Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showClearConfirm}
+        title="Clear Entire Library?"
+        message="This will permanently delete all drops, links, and notes from IndexedDB. This action cannot be undone."
+        confirmLabel="Clear Library"
+        cancelLabel="Cancel"
+        isDanger={true}
+        onConfirm={handleConfirmClearAll}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </div>
   );
 };

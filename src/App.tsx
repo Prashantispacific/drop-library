@@ -5,6 +5,7 @@ import { queueWorker } from './services/queueWorker';
 import { SearchEngine } from './services/search';
 import { coldStartBuffer, type IncomingSharePayload } from './native/coldStartBuffer';
 import { setupStatusBar, triggerHaptic, returnToPreviousApp } from './native/bridge';
+import { readSharedFileAsBase64 } from './utils/file';
 
 import { QuickDropBar } from './components/QuickDropBar';
 import { FilterBar } from './components/FilterBar';
@@ -73,10 +74,17 @@ export default function App() {
 
     // Single or multiple image file shares
     let platform: LibraryItem['platform'] | undefined;
+    let thumbnailUrl: string | undefined;
+
     if (payload.files && payload.files.length > 0) {
       const firstFile = payload.files[0];
       if (firstFile.mimeType.startsWith('image/')) {
         platform = 'image';
+        try {
+          thumbnailUrl = await readSharedFileAsBase64(firstFile.uri, firstFile.mimeType);
+        } catch (e) {
+          console.warn('[App] Failed to read shared image file:', e);
+        }
       }
     }
 
@@ -85,6 +93,7 @@ export default function App() {
         rawText: rawText || undefined,
         url: targetUrl,
         platform,
+        thumbnailUrl,
       });
 
       const currentSettings = await storage.getSettings();

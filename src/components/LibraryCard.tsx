@@ -90,13 +90,14 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({ item, onClick }) => {
       className="group relative rounded-2xl bg-[#121212] border border-white/[0.08] hover:border-white/20 transition-all duration-200 overflow-hidden cursor-pointer flex flex-col justify-between shadow-sm active:scale-[0.99]"
     >
       {/* Top Media / Thumbnail */}
-      {(item.thumbnailUrl || item.platform === 'instagram' || item.platform === 'youtube') && (
-        <div className="relative">
+      {(item.thumbnailUrl || item.platform === 'instagram' || item.platform === 'youtube' || item.platform === 'image') && (
+        <div className="relative bg-black/40">
           <ImageWithFallback
             src={item.thumbnailUrl}
             alt={title}
             platform={item.platform}
-            aspectRatio="wide"
+            aspectRatio={item.platform === 'image' ? 'video' : 'wide'}
+            className="w-full object-cover"
           />
 
           {/* Floating Platform Badge */}
@@ -168,6 +169,13 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({ item, onClick }) => {
           <h3 className="text-sm font-medium text-[#E2E2E2] line-clamp-2 mb-1.5 group-hover:text-white transition-colors">
             {title}
           </h3>
+
+          {/* Quick Intent Tag */}
+          {item.quickNote && (
+            <div className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[10px] font-medium mb-2">
+              <span>{item.quickNote}</span>
+            </div>
+          )}
 
           {/* TL;DR summary */}
           <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed mb-3">

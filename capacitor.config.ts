@@ -8,7 +8,6 @@ const config: CapacitorConfig = {
   android: {
     backgroundColor: '#0A0A0A',
     allowMixedContent: false,
-    captureInput: true,
   },
   plugins: {
     StatusBar: {

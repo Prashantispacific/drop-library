@@ -53,6 +53,8 @@ export const LibraryItemSchema = z.object({
   rawShareText: z.string().optional(),
   quickNote: z.string().optional(),
   thumbnailUrl: z.string().optional(),
+  noteContent: z.string().optional(),
+  isMarkdown: z.boolean().optional(),
   meta: GeminiMetaSchema.optional(),
 });
 

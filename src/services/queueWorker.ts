@@ -54,6 +54,8 @@ class QueueWorker {
     quickNote?: string;
     platform?: PlatformType;
     thumbnailUrl?: string;
+    noteContent?: string;
+    isMarkdown?: boolean;
   }): Promise<LibraryItem> {
     const rawText = input.rawText?.trim() || '';
     let targetUrl = input.url?.trim() || '';
@@ -74,6 +76,17 @@ class QueueWorker {
         rawText,
       });
 
+    const isMd =
+      input.isMarkdown ??
+      (platform === 'text' &&
+        Boolean(
+          rawText.startsWith('#') ||
+            rawText.includes('\n#') ||
+            rawText.includes('```') ||
+            rawText.includes('- ') ||
+            rawText.includes('**')
+        ));
+
     const newItem: LibraryItem = {
       id: crypto.randomUUID(),
       schemaVersion: 1,
@@ -86,6 +99,8 @@ class QueueWorker {
       rawShareText: rawText || undefined,
       quickNote: input.quickNote?.trim() || undefined,
       thumbnailUrl: input.thumbnailUrl,
+      noteContent: input.noteContent || (platform === 'text' ? rawText : undefined),
+      isMarkdown: isMd,
     };
 
     // 1. Immediately persist offline to IndexedDB
@@ -177,8 +192,9 @@ class QueueWorker {
         meta = await enrichWithGemini({
           platform: item.platform,
           url: item.url,
-          rawShareText: item.rawShareText,
+          rawShareText: item.noteContent || item.rawShareText,
           quickNote: item.quickNote,
+          thumbnailUrl: item.thumbnailUrl,
           unfurlData,
         });
       } catch (geminiErr) {
@@ -187,8 +203,9 @@ class QueueWorker {
         meta = createFallbackMeta({
           platform: item.platform,
           url: item.url,
-          rawShareText: item.rawShareText,
+          rawShareText: item.noteContent || item.rawShareText,
           quickNote: item.quickNote,
+          thumbnailUrl: item.thumbnailUrl,
           unfurlData,
         });
       }
@@ -197,8 +214,9 @@ class QueueWorker {
       meta = createFallbackMeta({
         platform: item.platform,
         url: item.url,
-        rawShareText: item.rawShareText,
+        rawShareText: item.noteContent || item.rawShareText,
         quickNote: item.quickNote,
+        thumbnailUrl: item.thumbnailUrl,
         unfurlData,
       });
     }
@@ -206,7 +224,7 @@ class QueueWorker {
     // 3. Mark as enriched and save
     await storage.updateItem(item.id, {
       status: 'enriched',
-      thumbnailUrl: unfurlData?.thumbnailUrl || item.thumbnailUrl,
+      thumbnailUrl: item.thumbnailUrl || unfurlData?.thumbnailUrl,
       meta,
       errorMessage: undefined,
     });

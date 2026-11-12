@@ -28,7 +28,9 @@ export interface LibraryItem {
   platform: PlatformType;
   rawShareText?: string;          // Raw text/title from Android Share Sheet
   quickNote?: string;             // Optional 1-tap tag/note added on capture
-  thumbnailUrl?: string;          // Extracted og:image URL
+  thumbnailUrl?: string;          // Extracted og:image URL or base64 image data
+  noteContent?: string;           // Full raw note or markdown text
+  isMarkdown?: boolean;           // True if user note is in markdown format
 
   // 2. AI-Structured Metadata (Validated JSON from Gemini)
   meta?: LibraryItemMeta;
