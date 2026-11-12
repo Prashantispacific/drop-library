@@ -6,7 +6,7 @@ const ITEMS_KEY = 'drop_library_items_v1';
 const SETTINGS_KEY = 'drop_library_settings_v1';
 
 const DEFAULT_SETTINGS: UserSettings = {
-  geminiApiKey: '',
+  geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
   geminiModel: 'gemini-2.5-flash',
   unfurlEndpoint: import.meta.env.VITE_UNFURL_ENDPOINT || '',
   themeMode: 'oled',

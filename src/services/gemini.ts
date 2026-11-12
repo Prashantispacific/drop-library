@@ -119,7 +119,10 @@ export async function enrichWithGemini(input: EnrichInput): Promise<LibraryItemM
   // Use configured model or fallback
   const modelName = settings.geminiModel || 'gemini-2.5-flash';
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({
+    apiKey,
+    httpOptions: { apiVersion: 'v1beta' },
+  });
   const contents = buildGeminiContents(input);
 
   const response = await ai.models.generateContent({
