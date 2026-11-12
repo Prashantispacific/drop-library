@@ -42,11 +42,13 @@ export interface UserSettings {
   geminiApiKey: string;
   geminiModel: string;
   geminiBaseUrl?: string; // Optional custom Gemini API URL or reverse proxy / AI gateway
+  savedGeminiModels?: string[]; // Stored custom Gemini model IDs for quick switching
 
   // Custom / OpenAI-Compatible Provider
   customApiUrl: string; // e.g. https://openrouter.ai/api/v1
   customApiKey: string; // e.g. sk-or-v1-... or nvapi-...
   customModel: string;  // e.g. meta-llama/llama-3.3-70b-instruct
+  savedCustomModels?: string[]; // Stored custom model IDs for quick switching
 
   unfurlEndpoint: string;
   themeMode: 'oled' | 'true-black';

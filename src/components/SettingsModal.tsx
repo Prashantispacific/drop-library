@@ -19,7 +19,6 @@ import {
   Check,
   RefreshCw,
   CornerUpLeft,
-  Sliders,
   Plus,
   Server,
   Bot,
@@ -28,6 +27,9 @@ import {
   Activity,
   AlertCircle,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Bookmark,
 } from 'lucide-react';
 import { enrichWithGemini } from '../services/gemini';
 import { enrichWithCustomAi } from '../services/customAi';
@@ -125,6 +127,22 @@ const CUSTOM_PRESETS: CustomPreset[] = [
   },
 ];
 
+interface PopularCustomModel {
+  id: string;
+  name: string;
+  badge: string;
+}
+
+const POPULAR_CUSTOM_MODELS: PopularCustomModel[] = [
+  { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B', badge: 'Llama 3.3' },
+  { id: 'meta/llama-3.1-70b-instruct', name: 'NVIDIA Llama 3.1 70B', badge: 'NIM' },
+  { id: 'llama-3.3-70b-versatile', name: 'Groq Llama 3.3', badge: 'Groq LPU' },
+  { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1', badge: 'Reasoning' },
+  { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', badge: 'Qwen 2.5' },
+  { id: 'mistralai/mistral-large-2411', name: 'Mistral Large', badge: 'Mistral' },
+  { id: 'llama3.2', name: 'Llama 3.2', badge: 'Ollama' },
+];
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
@@ -135,11 +153,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('gemini-3.5-flash-lite');
-  const [showCustomModel, setShowCustomModel] = useState(false);
-  const [customModelInput, setCustomModelInput] = useState('');
   const [customApiUrl, setCustomApiUrl] = useState('');
   const [customApiKey, setCustomApiKey] = useState('');
   const [customModel, setCustomModel] = useState('');
+  const [savedGeminiModels, setSavedGeminiModels] = useState<string[]>([]);
+  const [savedCustomModels, setSavedCustomModels] = useState<string[]>([]);
+  const [isGeminiModelsExpanded, setIsGeminiModelsExpanded] = useState(false);
+  const [isCustomModelsExpanded, setIsCustomModelsExpanded] = useState(false);
+  const [newGeminiModelInput, setNewGeminiModelInput] = useState('');
+  const [newCustomModelInput, setNewCustomModelInput] = useState('');
   const [unfurlEndpoint, setUnfurlEndpoint] = useState('');
   const [themeMode, setThemeMode] = useState<'oled' | 'true-black'>('oled');
   const [autoEnrich, setAutoEnrich] = useState(true);
@@ -224,14 +246,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setBaseUrl(s.geminiBaseUrl || '');
       const loadedModel = s.geminiModel || 'gemini-3.5-flash-lite';
       setModel(loadedModel);
-      const isKnown = SUPPORTED_MODELS.some((m) => m.id === loadedModel);
-      setShowCustomModel(!isKnown);
-      if (!isKnown) {
-        setCustomModelInput(loadedModel);
-      }
       setCustomApiUrl(s.customApiUrl || '');
       setCustomApiKey(s.customApiKey || '');
       setCustomModel(s.customModel || '');
+      setSavedGeminiModels(s.savedGeminiModels || []);
+      setSavedCustomModels(s.savedCustomModels || []);
       setUnfurlEndpoint(s.unfurlEndpoint || '');
       setThemeMode(s.themeMode || 'oled');
       setAutoEnrich(s.autoEnrich ?? true);
@@ -247,6 +266,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     return unregister;
   }, [isOpen, onClose]);
 
+  const handleAddGeminiModel = async (modelToAdd?: string) => {
+    const targetModel = (modelToAdd || newGeminiModelInput).trim();
+    if (!targetModel) return;
+
+    if (!savedGeminiModels.includes(targetModel) && !SUPPORTED_MODELS.some((m) => m.id === targetModel)) {
+      const updated = [...savedGeminiModels, targetModel];
+      setSavedGeminiModels(updated);
+      setModel(targetModel);
+      setNewGeminiModelInput('');
+      triggerHaptic('success');
+      showFeedback(`Saved Gemini model "${targetModel}"`);
+      await storage.saveSettings({ savedGeminiModels: updated, geminiModel: targetModel });
+    } else {
+      setModel(targetModel);
+      setNewGeminiModelInput('');
+      triggerHaptic('light');
+    }
+  };
+
+  const handleDeleteGeminiModel = async (modelToDelete: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    triggerHaptic('light');
+    const updated = savedGeminiModels.filter((m) => m !== modelToDelete);
+    setSavedGeminiModels(updated);
+    let nextModel = model;
+    if (model === modelToDelete) {
+      nextModel = SUPPORTED_MODELS[0].id;
+      setModel(nextModel);
+    }
+    showFeedback(`Removed "${modelToDelete}"`);
+    await storage.saveSettings({ savedGeminiModels: updated, geminiModel: nextModel });
+  };
+
+  const handleAddCustomModel = async (modelToAdd?: string) => {
+    const targetModel = (modelToAdd || newCustomModelInput).trim();
+    if (!targetModel) return;
+
+    if (!savedCustomModels.includes(targetModel)) {
+      const updated = [...savedCustomModels, targetModel];
+      setSavedCustomModels(updated);
+      setCustomModel(targetModel);
+      setNewCustomModelInput('');
+      triggerHaptic('success');
+      showFeedback(`Saved custom model "${targetModel}"`);
+      await storage.saveSettings({ savedCustomModels: updated, customModel: targetModel });
+    } else {
+      setCustomModel(targetModel);
+      setNewCustomModelInput('');
+      triggerHaptic('light');
+    }
+  };
+
+  const handleDeleteCustomModel = async (modelToDelete: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    triggerHaptic('light');
+    const updated = savedCustomModels.filter((m) => m !== modelToDelete);
+    setSavedCustomModels(updated);
+    let nextModel = customModel;
+    if (customModel === modelToDelete) {
+      nextModel = updated[0] || 'meta-llama/llama-3.3-70b-instruct';
+      setCustomModel(nextModel);
+    }
+    showFeedback(`Removed "${modelToDelete}"`);
+    await storage.saveSettings({ savedCustomModels: updated, customModel: nextModel });
+  };
+
   if (!isOpen) return null;
 
   const handleSave = async (e?: React.FormEvent) => {
@@ -258,9 +343,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       geminiApiKey: apiKey.trim(),
       geminiBaseUrl: baseUrl.trim(),
       geminiModel: model.trim(),
+      savedGeminiModels,
       customApiUrl: customApiUrl.trim(),
       customApiKey: customApiKey.trim(),
       customModel: customModel.trim(),
+      savedCustomModels,
       unfurlEndpoint: unfurlEndpoint.trim(),
       themeMode,
       autoEnrich,
@@ -475,110 +562,202 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </p>
             </div>
 
-            {/* Model Selection - Native OLED Card Selector */}
+            {/* Model Selection - Collapsible OLED Card Selector */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1.5">
                   <Cpu className="w-3 h-3 text-cyan-400" />
                   <span>Gemini Model</span>
                 </label>
-                <span className="text-[10px] text-cyan-400/80 font-mono">{model}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsGeminiModelsExpanded(!isGeminiModelsExpanded);
+                    triggerHaptic('light');
+                  }}
+                  className="text-[10px] text-cyan-400 hover:text-cyan-300 font-medium flex items-center space-x-1 py-0.5 px-1.5 rounded-md hover:bg-cyan-500/10 transition-colors"
+                >
+                  <span>{isGeminiModelsExpanded ? 'Collapse' : 'Expand / Switch'}</span>
+                  {isGeminiModelsExpanded ? (
+                    <ChevronUp className="w-3 h-3" />
+                  ) : (
+                    <ChevronDown className="w-3 h-3" />
+                  )}
+                </button>
               </div>
 
-              <div className="space-y-1.5">
-                {SUPPORTED_MODELS.map((m) => {
-                  const isSelected = !showCustomModel && model === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => {
-                        setModel(m.id);
-                        setShowCustomModel(false);
-                        triggerHaptic('light');
-                      }}
-                      className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
-                        isSelected
-                          ? 'bg-cyan-500/[0.08] border-cyan-500/40 text-white shadow-[0_0_15px_rgba(6,182,212,0.1)] ring-1 ring-cyan-500/20'
-                          : 'bg-black/30 border-white/[0.06] hover:bg-white/[0.04] text-neutral-300'
-                      }`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center space-x-2">
-                          <span className={`text-xs font-semibold ${isSelected ? 'text-cyan-300' : 'text-neutral-200'}`}>
-                            {m.name}
-                          </span>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded border font-mono tracking-tight ${m.badgeClass}`}>
-                            {m.tag}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">
-                          {m.description}
-                        </p>
-                      </div>
-                      <div className="shrink-0 flex items-center justify-center">
-                        {isSelected ? (
-                          <div className="w-4 h-4 rounded-full bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_8px_rgba(6,182,212,0.6)]">
-                            <Check className="w-2.5 h-2.5 stroke-[3]" />
-                          </div>
-                        ) : (
-                          <div className="w-4 h-4 rounded-full border border-neutral-700 bg-neutral-900/40" />
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+              {/* Collapsed Active Preview */}
+              {!isGeminiModelsExpanded && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsGeminiModelsExpanded(true);
+                    triggerHaptic('light');
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl border bg-cyan-500/[0.06] border-cyan-500/30 text-white flex items-center justify-between gap-3 hover:bg-cyan-500/[0.1] transition-all"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-semibold text-cyan-300 truncate">
+                        {SUPPORTED_MODELS.find((m) => m.id === model)?.name || model}
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded border font-mono tracking-tight text-cyan-400 bg-cyan-500/10 border-cyan-500/25 shrink-0">
+                        {SUPPORTED_MODELS.find((m) => m.id === model)?.tag || 'Custom Model'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-neutral-400 mt-0.5 truncate font-mono">
+                      {model}
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex items-center space-x-1 text-xs text-cyan-400">
+                    <span className="text-[10px] text-neutral-400">Switch</span>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </div>
+                </button>
+              )}
 
-                {/* Custom Model Option */}
-                <div className="pt-0.5">
-                  {!showCustomModel ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowCustomModel(true);
-                        if (customModelInput.trim()) {
-                          setModel(customModelInput.trim());
-                        }
-                        triggerHaptic('light');
-                      }}
-                      className="text-[11px] text-neutral-400 hover:text-cyan-400 flex items-center space-x-1 transition-colors px-1 py-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Use custom model ID (experimental / 1.5 Pro)</span>
-                    </button>
-                  ) : (
-                    <div className="p-2.5 rounded-xl bg-black/40 border border-cyan-500/40 ring-1 ring-cyan-500/20 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-cyan-300 flex items-center space-x-1.5">
-                          <Sliders className="w-3.5 h-3.5" />
-                          <span>Custom Model ID</span>
-                        </span>
+              {/* Expanded Model Picker */}
+              {isGeminiModelsExpanded && (
+                <div className="space-y-2 pt-0.5">
+                  <div className="space-y-1.5">
+                    {SUPPORTED_MODELS.map((m) => {
+                      const isSelected = model === m.id;
+                      return (
                         <button
+                          key={m.id}
                           type="button"
                           onClick={() => {
-                            setShowCustomModel(false);
-                            setModel(SUPPORTED_MODELS[0].id);
+                            setModel(m.id);
                             triggerHaptic('light');
                           }}
-                          className="text-[10px] text-neutral-400 hover:text-white"
+                          className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                            isSelected
+                              ? 'bg-cyan-500/[0.08] border-cyan-500/40 text-white shadow-[0_0_15px_rgba(6,182,212,0.1)] ring-1 ring-cyan-500/20'
+                              : 'bg-black/30 border-white/[0.06] hover:bg-white/[0.04] text-neutral-300'
+                          }`}
                         >
-                          Reset to preset
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2">
+                              <span className={`text-xs font-semibold ${isSelected ? 'text-cyan-300' : 'text-neutral-200'}`}>
+                                {m.name}
+                              </span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded border font-mono tracking-tight ${m.badgeClass}`}>
+                                {m.tag}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">
+                              {m.description}
+                            </p>
+                          </div>
+                          <div className="shrink-0 flex items-center justify-center">
+                            {isSelected ? (
+                              <div className="w-4 h-4 rounded-full bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_8px_rgba(6,182,212,0.6)]">
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              </div>
+                            ) : (
+                              <div className="w-4 h-4 rounded-full border border-neutral-700 bg-neutral-900/40" />
+                            )}
+                          </div>
                         </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Stored Custom Models List */}
+                  {savedGeminiModels.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center space-x-1">
+                        <Bookmark className="w-2.5 h-2.5 text-cyan-400" />
+                        <span>Your Stored Models</span>
                       </div>
-                      <input
-                        type="text"
-                        value={customModelInput}
-                        onChange={(e) => {
-                          setCustomModelInput(e.target.value);
-                          setModel(e.target.value.trim());
-                        }}
-                        placeholder="e.g. gemini-4-carbon or gemini-3.8-flash"
-                        className="w-full bg-[#181818] border border-white/[0.08] focus:border-cyan-500/50 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs font-mono text-white placeholder-neutral-600 transition-colors"
-                      />
+                      <div className="space-y-1">
+                        {savedGeminiModels.map((mId) => {
+                          const isSelected = model === mId;
+                          return (
+                            <div
+                              key={mId}
+                              onClick={() => {
+                                setModel(mId);
+                                triggerHaptic('light');
+                              }}
+                              className={`w-full text-left p-2 rounded-xl border transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                                isSelected
+                                  ? 'bg-cyan-500/[0.08] border-cyan-500/40 text-white ring-1 ring-cyan-500/20'
+                                  : 'bg-black/30 border-white/[0.06] hover:bg-white/[0.04] text-neutral-300'
+                              }`}
+                            >
+                              <div className="flex-1 min-w-0 flex items-center space-x-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0" />
+                                <span className="text-xs font-mono truncate">{mId}</span>
+                              </div>
+                              <div className="flex items-center space-x-1.5 shrink-0">
+                                {isSelected && (
+                                  <span className="text-[9px] text-cyan-400 font-mono">Active</span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteGeminiModel(mId, e)}
+                                  title="Remove stored model"
+                                  className="p-1 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
+
+                  {/* Add & Store Custom Model Input */}
+                  <div className="p-2.5 rounded-xl bg-black/40 border border-white/[0.08] space-y-2 mt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1">
+                        <Plus className="w-3 h-3 text-cyan-400" />
+                        <span>Add & Store Custom Model</span>
+                      </span>
+                      <span className="text-[9px] text-neutral-500 font-mono">Saved for 1-tap switch</span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <input
+                        type="text"
+                        value={newGeminiModelInput}
+                        onChange={(e) => setNewGeminiModelInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddGeminiModel();
+                          }
+                        }}
+                        placeholder="e.g. gemini-4-carbon or experimental"
+                        className="flex-1 bg-[#161616] border border-white/[0.08] focus:border-cyan-500/40 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs font-mono text-white placeholder-neutral-600 transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddGeminiModel()}
+                        disabled={!newGeminiModelInput.trim()}
+                        className="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-medium transition-colors disabled:opacity-40 shrink-0"
+                      >
+                        + Store
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Collapse Helper Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsGeminiModelsExpanded(false);
+                      triggerHaptic('light');
+                    }}
+                    className="w-full py-1.5 text-center text-[10px] text-neutral-400 hover:text-white flex items-center justify-center space-x-1 transition-colors"
+                  >
+                    <span>Collapse model list</span>
+                    <ChevronUp className="w-3 h-3" />
+                  </button>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
@@ -662,18 +841,213 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               />
             </div>
 
-            {/* Custom Model ID */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1">
-                <span>Model ID</span>
-              </label>
-              <input
-                type="text"
-                value={customModel}
-                onChange={(e) => setCustomModel(e.target.value)}
-                placeholder="e.g. meta-llama/llama-3.3-70b-instruct or meta/llama-3.1-70b-instruct"
-                className="w-full bg-black/40 border border-white/[0.08] focus:border-amber-400/50 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
-              />
+            {/* Model Selection - Collapsible Custom Model Selector & Stored Models */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1.5">
+                  <Cpu className="w-3 h-3 text-amber-400" />
+                  <span>Model Selection</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomModelsExpanded(!isCustomModelsExpanded);
+                    triggerHaptic('light');
+                  }}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 font-medium flex items-center space-x-1 py-0.5 px-1.5 rounded-md hover:bg-amber-500/10 transition-colors"
+                >
+                  <span>{isCustomModelsExpanded ? 'Collapse' : 'Expand / Switch'}</span>
+                  {isCustomModelsExpanded ? (
+                    <ChevronUp className="w-3 h-3" />
+                  ) : (
+                    <ChevronDown className="w-3 h-3" />
+                  )}
+                </button>
+              </div>
+
+              {/* Collapsed Active Preview */}
+              {!isCustomModelsExpanded && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomModelsExpanded(true);
+                    triggerHaptic('light');
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl border bg-amber-500/[0.06] border-amber-500/30 text-white flex items-center justify-between gap-3 hover:bg-amber-500/[0.1] transition-all"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-semibold text-amber-300 truncate font-mono">
+                        {customModel || 'None Selected'}
+                      </span>
+                      {customModel && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded border font-mono tracking-tight text-amber-400 bg-amber-500/10 border-amber-500/25 shrink-0">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-neutral-400 mt-0.5 truncate">
+                      {POPULAR_CUSTOM_MODELS.find((p) => p.id === customModel)?.name || 'Custom / Preset Model'}
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex items-center space-x-1 text-xs text-amber-400">
+                    <span className="text-[10px] text-neutral-400">Switch</span>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </div>
+                </button>
+              )}
+
+              {/* Expanded Model Picker */}
+              {isCustomModelsExpanded && (
+                <div className="space-y-2.5 pt-0.5">
+                  {/* Direct Model ID Input */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-neutral-400">Active Model ID:</span>
+                      <span className="text-[9px] text-neutral-500 font-mono">Editable directly</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={customModel}
+                      onChange={(e) => setCustomModel(e.target.value)}
+                      placeholder="e.g. meta-llama/llama-3.3-70b-instruct or meta/llama-3.1-70b-instruct"
+                      className="w-full bg-black/40 border border-white/[0.08] focus:border-amber-400/50 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
+                    />
+                  </div>
+
+                  {/* Popular / Tested Models for 1-Tap Switch */}
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] font-medium text-neutral-400 flex items-center space-x-1">
+                      <Zap className="w-3 h-3 text-amber-400" />
+                      <span>Popular Open-Source Models:</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {POPULAR_CUSTOM_MODELS.map((p) => {
+                        const isSelected = customModel === p.id;
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setCustomModel(p.id);
+                              triggerHaptic('light');
+                            }}
+                            className={`p-2 rounded-xl text-left border transition-all flex items-center justify-between ${
+                              isSelected
+                                ? 'bg-amber-500/[0.1] border-amber-500/50 text-white ring-1 ring-amber-500/30'
+                                : 'bg-black/30 hover:bg-white/[0.04] border-white/[0.06] text-neutral-300'
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[11px] font-semibold text-neutral-200 truncate">{p.name}</div>
+                              <div className="text-[9px] text-amber-400/80 font-mono truncate">{p.badge}</div>
+                            </div>
+                            {isSelected && (
+                              <div className="w-3.5 h-3.5 rounded-full bg-amber-400 text-black flex items-center justify-center shrink-0 ml-1">
+                                <Check className="w-2 h-2 stroke-[3]" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Stored Custom Models List */}
+                  {savedCustomModels.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center space-x-1">
+                        <Bookmark className="w-2.5 h-2.5 text-amber-400" />
+                        <span>Your Stored Models</span>
+                      </div>
+                      <div className="space-y-1">
+                        {savedCustomModels.map((mId) => {
+                          const isSelected = customModel === mId;
+                          return (
+                            <div
+                              key={mId}
+                              onClick={() => {
+                                setCustomModel(mId);
+                                triggerHaptic('light');
+                              }}
+                              className={`w-full text-left p-2 rounded-xl border transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                                isSelected
+                                  ? 'bg-amber-500/[0.08] border-amber-500/40 text-white ring-1 ring-amber-500/20'
+                                  : 'bg-black/30 border-white/[0.06] hover:bg-white/[0.04] text-neutral-300'
+                              }`}
+                            >
+                              <div className="flex-1 min-w-0 flex items-center space-x-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                                <span className="text-xs font-mono truncate">{mId}</span>
+                              </div>
+                              <div className="flex items-center space-x-1.5 shrink-0">
+                                {isSelected && (
+                                  <span className="text-[9px] text-amber-400 font-mono">Active</span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteCustomModel(mId, e)}
+                                  title="Remove stored model"
+                                  className="p-1 rounded-lg text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add & Store Custom Model Input */}
+                  <div className="p-2.5 rounded-xl bg-black/40 border border-white/[0.08] space-y-2 mt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1">
+                        <Plus className="w-3 h-3 text-amber-400" />
+                        <span>Add & Store Custom Model</span>
+                      </span>
+                      <span className="text-[9px] text-neutral-500 font-mono">Saved for 1-tap switch</span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <input
+                        type="text"
+                        value={newCustomModelInput}
+                        onChange={(e) => setNewCustomModelInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomModel();
+                          }
+                        }}
+                        placeholder="e.g. deepseek-ai/deepseek-v3 or mistral-large"
+                        className="flex-1 bg-[#161616] border border-white/[0.08] focus:border-amber-400/40 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs font-mono text-white placeholder-neutral-600 transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAddCustomModel()}
+                        disabled={!newCustomModelInput.trim()}
+                        className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-colors disabled:opacity-40 shrink-0"
+                      >
+                        + Store
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Collapse Helper Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomModelsExpanded(false);
+                      triggerHaptic('light');
+                    }}
+                    className="w-full py-1.5 text-center text-[10px] text-neutral-400 hover:text-white flex items-center justify-center space-x-1 transition-colors"
+                  >
+                    <span>Collapse model list</span>
+                    <ChevronUp className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
             </div>
 
             <p className="text-[10px] text-neutral-500 leading-relaxed">
