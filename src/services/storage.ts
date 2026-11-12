@@ -7,9 +7,13 @@ const SETTINGS_KEY = 'drop_library_settings_v1';
 
 const DEFAULT_SETTINGS: UserSettings = {
   // BYOK model: Never hardcode or inline API keys into the client bundle
+  aiProvider: 'gemini',
   geminiApiKey: '',
   geminiModel: 'gemini-2.5-flash',
   geminiBaseUrl: '',
+  customApiUrl: '',
+  customApiKey: '',
+  customModel: '',
   unfurlEndpoint: import.meta.env.VITE_UNFURL_ENDPOINT || '',
   themeMode: 'oled',
   autoEnrich: true,
@@ -211,8 +215,8 @@ class StorageService {
   async exportBackup(): Promise<string> {
     const items = await this.getAllItems();
     const settings = await this.getSettings();
-    // Exclude API key from exported backup for security!
-    const safeSettings = { ...settings, geminiApiKey: '' };
+    // Exclude API keys from exported backup for security!
+    const safeSettings = { ...settings, geminiApiKey: '', customApiKey: '' };
 
     return JSON.stringify(
       {

@@ -59,9 +59,13 @@ export const LibraryItemSchema = z.object({
 });
 
 export const UserSettingsSchema = z.object({
+  aiProvider: z.enum(['gemini', 'custom']).default('gemini'),
   geminiApiKey: z.string().default(''),
   geminiModel: z.string().default('gemini-2.5-flash'),
   geminiBaseUrl: z.string().default(''),
+  customApiUrl: z.string().default(''),
+  customApiKey: z.string().default(''),
+  customModel: z.string().default(''),
   unfurlEndpoint: z.string().default(''),
   themeMode: z.enum(['oled', 'true-black']).default('oled'),
   autoEnrich: z.boolean().default(true),

@@ -183,11 +183,15 @@ class QueueWorker {
       }
     }
 
-    // 2. Gemini AI structuring
+    // 2. AI structuring (Gemini or Custom Provider)
     const settings = await storage.getSettings();
     let meta = item.meta;
 
-    if (settings.geminiApiKey?.trim() && settings.autoEnrich) {
+    const hasAiConfigured = Boolean(
+      settings.geminiApiKey?.trim() || settings.customApiUrl?.trim()
+    );
+
+    if (hasAiConfigured && settings.autoEnrich) {
       try {
         meta = await enrichWithGemini({
           platform: item.platform,

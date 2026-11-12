@@ -22,6 +22,9 @@ import {
   Sliders,
   Plus,
   Server,
+  Bot,
+  Zap,
+  Layers,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -69,17 +72,55 @@ const SUPPORTED_MODELS: ModelOption[] = [
   },
 ];
 
+interface CustomPreset {
+  name: string;
+  url: string;
+  model: string;
+  badge: string;
+}
+
+const CUSTOM_PRESETS: CustomPreset[] = [
+  {
+    name: 'OpenRouter',
+    url: 'https://openrouter.ai/api/v1',
+    model: 'meta-llama/llama-3.3-70b-instruct',
+    badge: 'Multi-Model',
+  },
+  {
+    name: 'NVIDIA NIM',
+    url: 'https://integrate.api.nvidia.com/v1',
+    model: 'meta/llama-3.1-70b-instruct',
+    badge: 'Ultra Fast',
+  },
+  {
+    name: 'Groq',
+    url: 'https://api.groq.com/openai/v1',
+    model: 'llama-3.3-70b-versatile',
+    badge: 'LPU Speed',
+  },
+  {
+    name: 'Ollama (Local)',
+    url: 'http://localhost:11434/v1',
+    model: 'llama3.2',
+    badge: 'Offline',
+  },
+];
+
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   items,
 }) => {
   const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [aiProvider, setAiProvider] = useState<'gemini' | 'custom'>('gemini');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('gemini-2.5-flash');
   const [showCustomModel, setShowCustomModel] = useState(false);
   const [customModelInput, setCustomModelInput] = useState('');
+  const [customApiUrl, setCustomApiUrl] = useState('');
+  const [customApiKey, setCustomApiKey] = useState('');
+  const [customModel, setCustomModel] = useState('');
   const [unfurlEndpoint, setUnfurlEndpoint] = useState('');
   const [themeMode, setThemeMode] = useState<'oled' | 'true-black'>('oled');
   const [autoEnrich, setAutoEnrich] = useState(true);
@@ -102,6 +143,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (!isOpen) return;
     storage.getSettings().then((s) => {
       setSettings(s);
+      setAiProvider(s.aiProvider || 'gemini');
       setApiKey(s.geminiApiKey || '');
       setBaseUrl(s.geminiBaseUrl || '');
       const loadedModel = s.geminiModel || 'gemini-2.5-flash';
@@ -111,6 +153,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       if (!isKnown) {
         setCustomModelInput(loadedModel);
       }
+      setCustomApiUrl(s.customApiUrl || '');
+      setCustomApiKey(s.customApiKey || '');
+      setCustomModel(s.customModel || '');
       setUnfurlEndpoint(s.unfurlEndpoint || '');
       setThemeMode(s.themeMode || 'oled');
       setAutoEnrich(s.autoEnrich ?? true);
@@ -133,9 +178,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     triggerHaptic('light');
 
     const updated = await storage.saveSettings({
+      aiProvider,
       geminiApiKey: apiKey.trim(),
       geminiBaseUrl: baseUrl.trim(),
       geminiModel: model.trim(),
+      customApiUrl: customApiUrl.trim(),
+      customApiKey: customApiKey.trim(),
+      customModel: customModel.trim(),
       unfurlEndpoint: unfurlEndpoint.trim(),
       themeMode,
       autoEnrich,
@@ -227,167 +276,335 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         <form onSubmit={handleSave} className="p-5 space-y-6">
-          {/* BYOK: Google AI Studio API Key */}
+          {/* AI Provider Mode Selector */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold uppercase tracking-wider text-neutral-300 flex items-center space-x-1.5">
-                <Key className="w-3.5 h-3.5 text-amber-400" />
-                <span>Google AI Studio Key (BYOK)</span>
-              </label>
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] text-neutral-400 hover:text-white flex items-center space-x-1 underline"
-              >
-                <span>Get Free Key</span>
-                <ExternalLink className="w-2.5 h-2.5" />
-              </a>
-            </div>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Paste your AI Studio API key (AIza...)"
-              className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-white/20 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
-            />
-            <p className="text-[11px] text-neutral-500 leading-relaxed">
-              Public repo safe: Kept strictly on-device in IndexedDB. Never transmitted to third parties.
-            </p>
-          </div>
-
-          {/* Custom Gemini API URL / Gateway / Fallback */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold uppercase tracking-wider text-neutral-300 flex items-center space-x-1.5">
-                <Server className="w-3.5 h-3.5 text-amber-400" />
-                <span>Custom Gemini API URL (Optional)</span>
-              </label>
-              <span className="text-[10px] text-amber-400/80 font-mono">
-                {baseUrl ? 'Proxy Active' : 'Official Google AI'}
-              </span>
-            </div>
-            <input
-              type="url"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="e.g. https://gateway.ai.cloudflare.com/... or https://my-proxy.com"
-              className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-amber-400/40 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
-            />
-            <p className="text-[11px] text-neutral-500 leading-relaxed">
-              Default is official Google AI Studio. Set a custom proxy, Cloudflare AI Gateway, or LiteLLM URL to bypass regional blocks. If unreachable, the app automatically falls back to official Google endpoints.
-            </p>
-          </div>
-
-          {/* Model Selection - Native OLED Card Selector (No OS Select Dialog) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold uppercase tracking-wider text-neutral-300 flex items-center space-x-1.5">
-                <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Gemini Model</span>
+                <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Primary AI Engine</span>
               </label>
               <span className="text-[10px] text-cyan-400/80 font-mono">
-                {model}
+                {aiProvider === 'gemini' ? 'Google Gemini (Default)' : 'Custom / OpenAI-Compatible'}
               </span>
             </div>
 
-            <div className="space-y-1.5">
-              {SUPPORTED_MODELS.map((m) => {
-                const isSelected = !showCustomModel && model === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => {
-                      setModel(m.id);
-                      setShowCustomModel(false);
-                      triggerHaptic('light');
-                    }}
-                    className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
-                      isSelected
-                        ? 'bg-cyan-500/[0.08] border-cyan-500/40 text-white shadow-[0_0_15px_rgba(6,182,212,0.1)] ring-1 ring-cyan-500/20'
-                        : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-neutral-300'
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <span className={`text-xs font-semibold ${isSelected ? 'text-cyan-300' : 'text-neutral-200'}`}>
-                          {m.name}
-                        </span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded border font-mono tracking-tight ${m.badgeClass}`}>
-                          {m.tag}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">
-                        {m.description}
-                      </p>
-                    </div>
-                    <div className="shrink-0 flex items-center justify-center">
-                      {isSelected ? (
-                        <div className="w-4 h-4 rounded-full bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_8px_rgba(6,182,212,0.6)]">
-                          <Check className="w-2.5 h-2.5 stroke-[3]" />
-                        </div>
-                      ) : (
-                        <div className="w-4 h-4 rounded-full border border-neutral-700 bg-neutral-900/40" />
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAiProvider('gemini');
+                  triggerHaptic('light');
+                }}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  aiProvider === 'gemini'
+                    ? 'bg-cyan-500/[0.08] border-cyan-500/40 text-white ring-1 ring-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]'
+                    : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-neutral-400'
+                }`}
+              >
+                <div className="flex items-center space-x-1.5 font-semibold text-xs text-cyan-300">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Google Gemini</span>
+                </div>
+                <p className="text-[10px] text-neutral-400 mt-1 leading-snug">
+                  Fast native multimodal OCR & free-tier structuring.
+                </p>
+              </button>
 
-              {/* Custom Model Option */}
-              <div className="pt-0.5">
-                {!showCustomModel ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCustomModel(true);
-                      if (customModelInput.trim()) {
-                        setModel(customModelInput.trim());
-                      }
-                      triggerHaptic('light');
-                    }}
-                    className="text-[11px] text-neutral-400 hover:text-cyan-400 flex items-center space-x-1 transition-colors px-1 py-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Use custom model ID (experimental / 1.5 Pro)</span>
-                  </button>
-                ) : (
-                  <div className="p-2.5 rounded-xl bg-white/[0.02] border border-cyan-500/40 ring-1 ring-cyan-500/20 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-cyan-300 flex items-center space-x-1.5">
-                        <Sliders className="w-3.5 h-3.5" />
-                        <span>Custom Model ID</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCustomModel(false);
-                          setModel(SUPPORTED_MODELS[0].id);
-                          triggerHaptic('light');
-                        }}
-                        className="text-[10px] text-neutral-400 hover:text-white"
-                      >
-                        Reset to preset
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      value={customModelInput}
-                      onChange={(e) => {
-                        setCustomModelInput(e.target.value);
-                        setModel(e.target.value.trim());
+              <button
+                type="button"
+                onClick={() => {
+                  setAiProvider('custom');
+                  triggerHaptic('light');
+                }}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  aiProvider === 'custom'
+                    ? 'bg-amber-500/[0.08] border-amber-500/40 text-white ring-1 ring-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
+                    : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-neutral-400'
+                }`}
+              >
+                <div className="flex items-center space-x-1.5 font-semibold text-xs text-amber-300">
+                  <Server className="w-3.5 h-3.5" />
+                  <span>Custom Provider</span>
+                </div>
+                <p className="text-[10px] text-neutral-400 mt-1 leading-snug">
+                  NVIDIA NIM, Llama, OpenRouter, Groq, or Ollama.
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* SECTION 1: Google Gemini Configuration */}
+          <div className={`space-y-4 p-4 rounded-2xl border transition-all ${
+            aiProvider === 'gemini'
+              ? 'bg-cyan-500/[0.02] border-cyan-500/20'
+              : 'bg-white/[0.01] border-white/[0.06]'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-cyan-300 flex items-center space-x-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{aiProvider === 'gemini' ? 'Google Gemini Settings (Primary)' : 'Google Gemini Settings (Fallback)'}</span>
+              </span>
+              <span className="text-[10px] text-neutral-500 font-mono">Official SDK</span>
+            </div>
+
+            {/* BYOK: Google AI Studio API Key */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1.5">
+                  <Key className="w-3 h-3 text-amber-400" />
+                  <span>Google AI Studio Key (BYOK)</span>
+                </label>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] text-neutral-400 hover:text-white flex items-center space-x-1 underline"
+                >
+                  <span>Get Free Key</span>
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              </div>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Paste your AI Studio API key (AIza...)"
+                className="w-full bg-black/40 border border-white/[0.08] focus:border-cyan-500/40 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
+              />
+              <p className="text-[10px] text-neutral-500 leading-relaxed">
+                Public repo safe: Kept strictly on-device in IndexedDB. Never transmitted to third parties.
+              </p>
+            </div>
+
+            {/* Custom Gemini API URL / Gateway (Optional) */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1.5">
+                  <Server className="w-3 h-3 text-amber-400" />
+                  <span>Custom Gemini Proxy URL (Optional)</span>
+                </label>
+                <span className="text-[10px] text-amber-400/80 font-mono">
+                  {baseUrl ? 'Proxy Active' : 'Official Google AI'}
+                </span>
+              </div>
+              <input
+                type="url"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="e.g. https://gateway.ai.cloudflare.com/... or https://my-proxy.com"
+                className="w-full bg-black/40 border border-white/[0.08] focus:border-amber-400/40 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
+              />
+              <p className="text-[10px] text-neutral-500">
+                Leave blank for official Google AI. Custom proxy will automatically fall back to Google if unreachable.
+              </p>
+            </div>
+
+            {/* Model Selection - Native OLED Card Selector */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1.5">
+                  <Cpu className="w-3 h-3 text-cyan-400" />
+                  <span>Gemini Model</span>
+                </label>
+                <span className="text-[10px] text-cyan-400/80 font-mono">{model}</span>
+              </div>
+
+              <div className="space-y-1.5">
+                {SUPPORTED_MODELS.map((m) => {
+                  const isSelected = !showCustomModel && model === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setModel(m.id);
+                        setShowCustomModel(false);
+                        triggerHaptic('light');
                       }}
-                      placeholder="e.g. gemini-2.0-flash-thinking-exp"
-                      className="w-full bg-[#181818] border border-white/[0.08] focus:border-cyan-500/50 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs font-mono text-white placeholder-neutral-600 transition-colors"
-                    />
-                    <p className="text-[10px] text-neutral-500">
-                      Must be a valid Gemini model ID supported by Google AI Studio for your API key.
-                    </p>
-                  </div>
-                )}
+                      className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'bg-cyan-500/[0.08] border-cyan-500/40 text-white shadow-[0_0_15px_rgba(6,182,212,0.1)] ring-1 ring-cyan-500/20'
+                          : 'bg-black/30 border-white/[0.06] hover:bg-white/[0.04] text-neutral-300'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-xs font-semibold ${isSelected ? 'text-cyan-300' : 'text-neutral-200'}`}>
+                            {m.name}
+                          </span>
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded border font-mono tracking-tight ${m.badgeClass}`}>
+                            {m.tag}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">
+                          {m.description}
+                        </p>
+                      </div>
+                      <div className="shrink-0 flex items-center justify-center">
+                        {isSelected ? (
+                          <div className="w-4 h-4 rounded-full bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_8px_rgba(6,182,212,0.6)]">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        ) : (
+                          <div className="w-4 h-4 rounded-full border border-neutral-700 bg-neutral-900/40" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {/* Custom Model Option */}
+                <div className="pt-0.5">
+                  {!showCustomModel ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCustomModel(true);
+                        if (customModelInput.trim()) {
+                          setModel(customModelInput.trim());
+                        }
+                        triggerHaptic('light');
+                      }}
+                      className="text-[11px] text-neutral-400 hover:text-cyan-400 flex items-center space-x-1 transition-colors px-1 py-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Use custom model ID (experimental / 1.5 Pro)</span>
+                    </button>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-black/40 border border-cyan-500/40 ring-1 ring-cyan-500/20 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-cyan-300 flex items-center space-x-1.5">
+                          <Sliders className="w-3.5 h-3.5" />
+                          <span>Custom Model ID</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCustomModel(false);
+                            setModel(SUPPORTED_MODELS[0].id);
+                            triggerHaptic('light');
+                          }}
+                          className="text-[10px] text-neutral-400 hover:text-white"
+                        >
+                          Reset to preset
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={customModelInput}
+                        onChange={(e) => {
+                          setCustomModelInput(e.target.value);
+                          setModel(e.target.value.trim());
+                        }}
+                        placeholder="e.g. gemini-2.0-flash-thinking-exp"
+                        className="w-full bg-[#181818] border border-white/[0.08] focus:border-cyan-500/50 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs font-mono text-white placeholder-neutral-600 transition-colors"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
+
+          {/* SECTION 2: Custom Provider (OpenRouter, NVIDIA NIM, Groq, Ollama, Llama) */}
+          <div className={`space-y-3.5 p-4 rounded-2xl border transition-all ${
+            aiProvider === 'custom'
+              ? 'bg-amber-500/[0.02] border-amber-500/30'
+              : 'bg-white/[0.01] border-white/[0.06]'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-amber-300 flex items-center space-x-1.5">
+                <Layers className="w-3.5 h-3.5" />
+                <span>
+                  {aiProvider === 'custom'
+                    ? 'Custom Provider (Primary: NVIDIA, Llama, OpenRouter)'
+                    : 'Alternative / Fallback Provider (NVIDIA, Llama, OpenRouter)'}
+                </span>
+              </span>
+              <span className="text-[10px] text-amber-400/80 font-mono">OpenAI-Compatible</span>
+            </div>
+
+            {/* Quick 1-tap Presets */}
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-medium text-neutral-400 flex items-center space-x-1">
+                <Zap className="w-3 h-3 text-amber-400" />
+                <span>Quick 1-Tap Presets:</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {CUSTOM_PRESETS.map((p) => {
+                  const isPresetActive = customApiUrl === p.url;
+                  return (
+                    <button
+                      key={p.name}
+                      type="button"
+                      onClick={() => {
+                        setCustomApiUrl(p.url);
+                        setCustomModel(p.model);
+                        triggerHaptic('light');
+                      }}
+                      className={`p-2 rounded-xl text-left border transition-all ${
+                        isPresetActive
+                          ? 'bg-amber-500/[0.1] border-amber-500/50 text-white ring-1 ring-amber-500/30'
+                          : 'bg-black/30 hover:bg-white/[0.04] border-white/[0.06] text-neutral-300'
+                      }`}
+                    >
+                      <div className="text-[11px] font-semibold text-neutral-200">{p.name}</div>
+                      <div className="text-[9px] text-amber-400/80 font-mono mt-0.5">{p.badge}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom API Base URL */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1">
+                <span>API Endpoint URL</span>
+                <span className="text-neutral-500 text-[10px]">(e.g. /v1)</span>
+              </label>
+              <input
+                type="url"
+                value={customApiUrl}
+                onChange={(e) => setCustomApiUrl(e.target.value)}
+                placeholder="https://openrouter.ai/api/v1 or https://integrate.api.nvidia.com/v1"
+                className="w-full bg-black/40 border border-white/[0.08] focus:border-amber-400/50 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
+              />
+            </div>
+
+            {/* Custom API Key */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1">
+                <span>API Key</span>
+                <span className="text-neutral-500 text-[10px]">(BYOK: saved on-device)</span>
+              </label>
+              <input
+                type="password"
+                value={customApiKey}
+                onChange={(e) => setCustomApiKey(e.target.value)}
+                placeholder="sk-or-... or nvapi-... (leave empty for local Ollama)"
+                className="w-full bg-black/40 border border-white/[0.08] focus:border-amber-400/50 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
+              />
+            </div>
+
+            {/* Custom Model ID */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-neutral-300 flex items-center space-x-1">
+                <span>Model ID</span>
+              </label>
+              <input
+                type="text"
+                value={customModel}
+                onChange={(e) => setCustomModel(e.target.value)}
+                placeholder="e.g. meta-llama/llama-3.3-70b-instruct or meta/llama-3.1-70b-instruct"
+                className="w-full bg-black/40 border border-white/[0.08] focus:border-amber-400/50 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
+              />
+            </div>
+
+            <p className="text-[10px] text-neutral-500 leading-relaxed">
+              {aiProvider === 'custom'
+                ? 'Active engine. If this provider is unreachable or fails, Drop Library automatically falls back to Google Gemini.'
+                : 'Automatic Fallback: If Google Gemini hits rate limits (429) or quota errors, Drop Library will seamlessly switch to this provider.'}
+            </p>
           </div>
 
           {/* Unfurl Server Endpoint */}

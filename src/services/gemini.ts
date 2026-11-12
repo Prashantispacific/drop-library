@@ -2,6 +2,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import type { LibraryItemMeta, PlatformType, UnfurlResult } from '../types/library';
 import { GeminiMetaSchema } from '../types/schema';
 import { storage } from './storage';
+import { enrichWithCustomAi } from './customAi';
 
 export interface EnrichInput {
   platform: PlatformType;
@@ -186,89 +187,146 @@ async function callGemini(
 }
 
 /**
- * Enriches a library item using Google AI Studio Gemini API with strict structured JSON output.
- * Supports custom base URLs (proxies, Cloudflare AI Gateway, LiteLLM) and automatic fallback.
+ * Enriches a library item using either Google Gemini or Custom OpenAI-compatible AI
+ * (OpenRouter, NVIDIA NIM, Groq, Ollama, Llama), featuring automatic cross-provider fallback.
  */
 export async function enrichWithGemini(input: EnrichInput): Promise<LibraryItemMeta> {
   const settings = await storage.getSettings();
-  const apiKey = settings.geminiApiKey?.trim();
+  const activeProvider = settings.aiProvider || 'gemini';
+  const hasGeminiKey = Boolean(settings.geminiApiKey?.trim());
+  const hasCustomConfig = Boolean(settings.customApiUrl?.trim());
 
-  if (!apiKey) {
-    throw new Error('MISSING_API_KEY: Please configure your Google AI Studio API key in Settings.');
+  if (!hasGeminiKey && !hasCustomConfig) {
+    throw new Error(
+      'MISSING_API_KEY: Please configure your Gemini API key or Custom API Provider in Settings.'
+    );
   }
 
-  // Use configured model and optional custom URL
-  const primaryModel = settings.geminiModel || 'gemini-2.5-flash';
-  const customBaseUrl = settings.geminiBaseUrl?.trim();
-  const contents = buildGeminiContents(input);
+  // Pipeline 1: Google Gemini (with custom proxy & resilient model fallbacks)
+  const executeGeminiPipeline = async (): Promise<LibraryItemMeta> => {
+    const apiKey = settings.geminiApiKey?.trim();
+    if (!apiKey) throw new Error('MISSING_GEMINI_KEY');
 
-  let responseText: string | undefined;
+    const primaryModel = settings.geminiModel || 'gemini-2.5-flash';
+    const customBaseUrl = settings.geminiBaseUrl?.trim();
+    const contents = buildGeminiContents(input);
 
-  // 1. Primary Attempt (custom proxy/URL if set, otherwise official Google endpoint)
-  try {
-    responseText = await callGemini(apiKey, primaryModel, contents, customBaseUrl);
-  } catch (primaryErr: unknown) {
-    console.warn(
-      `[Gemini] Primary request failed (model: ${primaryModel}, url: ${customBaseUrl || 'default'}):`,
-      primaryErr
-    );
+    let responseText: string | undefined;
 
-    // Fallback 1: If custom URL was configured and failed (e.g. gateway down, proxy error),
-    // automatically fall back to the official Google AI Studio endpoint
-    if (customBaseUrl) {
-      console.info(
-        `[Gemini] Custom API URL failed. Automatically falling back to official Google AI Studio endpoint...`
+    try {
+      responseText = await callGemini(apiKey, primaryModel, contents, customBaseUrl);
+    } catch (primaryErr: unknown) {
+      console.warn(
+        `[Gemini] Primary request failed (model: ${primaryModel}, url: ${customBaseUrl || 'default'}):`,
+        primaryErr
       );
-      try {
-        responseText = await callGemini(apiKey, primaryModel, contents, undefined);
-      } catch (officialErr) {
-        console.warn(`[Gemini] Fallback to official endpoint also failed:`, officialErr);
-      }
-    }
 
-    // Fallback 2: If primary model failed (quota / rate limit 429 / 503) and model is not 'gemini-2.0-flash',
-    // attempt resilient fallback to stable 'gemini-2.0-flash'
-    if (!responseText && primaryModel !== 'gemini-2.0-flash') {
-      const fallbackModel = 'gemini-2.0-flash';
-      console.info(`[Gemini] Attempting fallback model: ${fallbackModel}...`);
-      try {
-        responseText = await callGemini(apiKey, fallbackModel, contents, customBaseUrl);
-      } catch {
-        if (customBaseUrl) {
-          try {
-            responseText = await callGemini(apiKey, fallbackModel, contents, undefined);
-          } catch {
-            // Keep original error
+      // Retry 1: Official endpoint fallback if custom URL failed
+      if (customBaseUrl) {
+        console.info(`[Gemini] Custom proxy failed. Falling back to official Google AI Studio endpoint...`);
+        try {
+          responseText = await callGemini(apiKey, primaryModel, contents, undefined);
+        } catch (officialErr) {
+          console.warn(`[Gemini] Official endpoint also failed:`, officialErr);
+        }
+      }
+
+      // Retry 2: Resilient model fallback (e.g. gemini-2.0-flash)
+      if (!responseText && primaryModel !== 'gemini-2.0-flash') {
+        const fallbackModel = 'gemini-2.0-flash';
+        console.info(`[Gemini] Attempting fallback model: ${fallbackModel}...`);
+        try {
+          responseText = await callGemini(apiKey, fallbackModel, contents, customBaseUrl);
+        } catch {
+          if (customBaseUrl) {
+            try {
+              responseText = await callGemini(apiKey, fallbackModel, contents, undefined);
+            } catch {
+              // Ignore
+            }
           }
         }
       }
+
+      if (!responseText) throw primaryErr;
     }
 
-    // If all attempts failed, throw the primary error so queueWorker can create heuristic fallback
-    if (!responseText) {
-      throw primaryErr;
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(responseText);
+    } catch {
+      throw new Error(`Failed to parse Gemini output as JSON: ${responseText.slice(0, 100)}`);
     }
-  }
 
-  // Parse and validate with runtime Zod schema
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(responseText);
-  } catch {
-    throw new Error(`Failed to parse Gemini output as JSON: ${responseText.slice(0, 100)}`);
-  }
-
-  const validated = GeminiMetaSchema.parse(parsedJson);
-
-  return {
-    title: validated.title,
-    tldr: validated.tldr,
-    category: validated.category,
-    tags: validated.tags,
-    searchSynonyms: validated.searchSynonyms,
-    authorOrHandle: validated.authorOrHandle,
-    estimatedReadMinutes: validated.estimatedReadMinutes,
+    const validated = GeminiMetaSchema.parse(parsedJson);
+    return {
+      title: validated.title,
+      tldr: validated.tldr,
+      category: validated.category,
+      tags: validated.tags,
+      searchSynonyms: validated.searchSynonyms,
+      authorOrHandle: validated.authorOrHandle,
+      estimatedReadMinutes: validated.estimatedReadMinutes,
+    };
   };
+
+  // Pipeline 2: Custom OpenAI-compatible Provider (OpenRouter, NVIDIA NIM, Groq, Ollama, Llama)
+  const executeCustomPipeline = async (): Promise<LibraryItemMeta> => {
+    return enrichWithCustomAi(input, {
+      apiUrl: settings.customApiUrl,
+      apiKey: settings.customApiKey,
+      model: settings.customModel || 'meta-llama/llama-3.3-70b-instruct',
+    });
+  };
+
+  // Branch A: User set Custom Provider as primary
+  if (activeProvider === 'custom') {
+    if (hasCustomConfig) {
+      try {
+        return await executeCustomPipeline();
+      } catch (customErr) {
+        console.warn(`[AI Engine] Custom AI provider failed:`, customErr);
+        if (hasGeminiKey) {
+          console.info(`[AI Engine] Automatically falling back to Google Gemini...`);
+          try {
+            return await executeGeminiPipeline();
+          } catch (geminiErr) {
+            console.warn(`[AI Engine] Fallback to Gemini also failed:`, geminiErr);
+          }
+        }
+        throw customErr;
+      }
+    } else if (hasGeminiKey) {
+      return await executeGeminiPipeline();
+    }
+  }
+
+  // Branch B: Default Google Gemini as primary
+  if (hasGeminiKey) {
+    try {
+      return await executeGeminiPipeline();
+    } catch (geminiErr) {
+      console.warn(`[AI Engine] Google Gemini failed:`, geminiErr);
+      if (hasCustomConfig) {
+        console.info(
+          `[AI Engine] Automatically falling back to Custom Provider (${settings.customModel || settings.customApiUrl})...`
+        );
+        try {
+          return await executeCustomPipeline();
+        } catch (customErr) {
+          console.warn(`[AI Engine] Fallback to Custom Provider also failed:`, customErr);
+        }
+      }
+      throw geminiErr;
+    }
+  }
+
+  // Branch C: Only custom provider is configured
+  if (hasCustomConfig) {
+    return await executeCustomPipeline();
+  }
+
+  throw new Error('MISSING_API_KEY: Please configure an AI provider in Settings.');
 }
 
 /**

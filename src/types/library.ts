@@ -35,10 +35,19 @@ export interface LibraryItem {
   meta?: LibraryItemMeta;
 }
 
+export type AiProvider = 'gemini' | 'custom';
+
 export interface UserSettings {
+  aiProvider: AiProvider; // 'gemini' (default) | 'custom' (OpenRouter, NVIDIA, Groq, Ollama, etc.)
   geminiApiKey: string;
   geminiModel: string;
   geminiBaseUrl?: string; // Optional custom Gemini API URL or reverse proxy / AI gateway
+
+  // Custom / OpenAI-Compatible Provider
+  customApiUrl: string; // e.g. https://openrouter.ai/api/v1
+  customApiKey: string; // e.g. sk-or-v1-... or nvapi-...
+  customModel: string;  // e.g. meta-llama/llama-3.3-70b-instruct
+
   unfurlEndpoint: string;
   themeMode: 'oled' | 'true-black';
   autoEnrich: boolean;
