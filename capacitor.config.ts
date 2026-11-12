@@ -1,0 +1,22 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.droplibrary.app',
+  appName: 'Drop Library',
+  webDir: 'dist',
+  backgroundColor: '#0A0A0A',
+  android: {
+    backgroundColor: '#0A0A0A',
+    allowMixedContent: false,
+    captureInput: true,
+  },
+  plugins: {
+    StatusBar: {
+      backgroundColor: '#0A0A0A',
+      style: 'DARK', // light content on dark background
+    },
+  },
+};
+
+export default config;
+
