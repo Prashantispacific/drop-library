@@ -4,6 +4,14 @@
   :root {
     --bg-canvas: #0A0A0A;
     --text-primary: #E2E2E2;
+    --status-bar-height: 0px;
+    --safe-area-top: max(env(safe-area-inset-top, 0px), var(--status-bar-height, 0px));
+    --safe-area-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+  }
+
+  /* When running natively on Android with camera cutouts/status bars */
+  .is-capacitor {
+    --status-bar-height: 38px;
   }
 
   body {

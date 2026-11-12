@@ -140,9 +140,13 @@ export default function App() {
     >
       {/* Top Sticky Header */}
       <header
-        className={`sticky top-0 z-30 px-4 py-3 border-b border-white/[0.08] backdrop-blur-xl ${
+        className={`sticky top-0 z-30 px-4 border-b border-white/[0.08] backdrop-blur-xl ${
           isTrueBlack ? 'bg-black/85' : 'bg-[#0A0A0A]/85'
         }`}
+        style={{
+          paddingTop: 'calc(max(env(safe-area-inset-top, 0px), var(--status-bar-height, 0px)) + 0.75rem)',
+          paddingBottom: '0.75rem',
+        }}
       >
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
@@ -198,7 +202,12 @@ export default function App() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-4xl mx-auto px-4 py-4 space-y-4 pb-20">
+      <main
+        className="max-w-4xl mx-auto px-4 py-4 space-y-4"
+        style={{
+          paddingBottom: 'calc(max(env(safe-area-inset-bottom, 0px), 0px) + 5rem)',
+        }}
+      >
         {/* Quick Drop Bar */}
         <QuickDropBar
           onItemDropped={(item) => {

@@ -7,7 +7,7 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 export const isNative = Capacitor.isNativePlatform();
 
 /**
- * Configure mobile status bar for OLED Dark or True Black.
+ * Configure mobile status bar for OLED Dark or True Black and update safe area height.
  */
 export async function setupStatusBar(isTrueBlack: boolean) {
   if (!isNative) return;
@@ -16,8 +16,16 @@ export async function setupStatusBar(isTrueBlack: boolean) {
     await StatusBar.setBackgroundColor({
       color: isTrueBlack ? '#000000' : '#0A0A0A',
     });
+
+    const info = await StatusBar.getInfo();
+    if (info && typeof info.height === 'number' && info.height > 0) {
+      document.documentElement.style.setProperty('--status-bar-height', `${info.height}px`);
+    } else {
+      document.documentElement.style.setProperty('--status-bar-height', '38px');
+    }
   } catch (err) {
     console.warn('[NativeBridge] StatusBar error:', err);
+    document.documentElement.style.setProperty('--status-bar-height', '38px');
   }
 }
 

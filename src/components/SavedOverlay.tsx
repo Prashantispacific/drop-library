@@ -78,6 +78,9 @@ export const SavedOverlay: React.FC<SavedOverlayProps> = ({ item, onDismiss }) =
     <div
       onClick={handleClose}
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
+      style={{
+        paddingBottom: 'calc(max(env(safe-area-inset-bottom, 0px), 0px) + 1rem)',
+      }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
