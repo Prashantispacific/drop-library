@@ -3,6 +3,7 @@
 <div align="center">
 
 [![Platform: Android](https://img.shields.io/badge/Platform-Android%2014+-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
+[![Latest Release](https://img.shields.io/github/v/release/Prashantispacific/drop-library?label=APK%20Release&color=10B981&logo=android)](https://github.com/Prashantispacific/drop-library/releases/latest)
 [![Capacitor 8](https://img.shields.io/badge/Capacitor-8.0-119EFF?logo=capacitor&logoColor=white)](https://capacitorjs.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![React 19](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
@@ -14,7 +15,7 @@
 **A personal, zero-friction, offline-first universal knowledge & media vault for Android.**  
 *Save Instagram Reels, YouTube videos, articles, quotes, and screenshots directly via the system Share Sheet without manual filing or note-taking.*
 
-[**Architecture Deep-Dive**](./ARCHITECTURE.md) • [**Contributing**](./CONTRIBUTING.md) • [**Security Policy**](./SECURITY.md)
+[⬇️ **Download Latest APK (v1.0.0)**](https://github.com/Prashantispacific/drop-library/releases/download/v1.0.0/drop-library-v1.0.0.apk) • [**Architecture Deep-Dive**](./ARCHITECTURE.md) • [**Contributing**](./CONTRIBUTING.md) • [**Security Policy**](./SECURITY.md)
 
 </div>
 
