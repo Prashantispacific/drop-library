@@ -25,7 +25,12 @@ import {
   Bot,
   Zap,
   Layers,
+  Activity,
+  AlertCircle,
+  CheckCircle,
 } from 'lucide-react';
+import { enrichWithGemini } from '../services/gemini';
+import { enrichWithCustomAi } from '../services/customAi';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -125,7 +130,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   items,
 }) => {
-  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [_settings, setSettings] = useState<UserSettings | null>(null);
   const [aiProvider, setAiProvider] = useState<'gemini' | 'custom'>('gemini');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -145,8 +150,65 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [testStatus, setTestStatus] = useState<{
+    loading: boolean;
+    success?: boolean;
+    message?: string;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleTestConnection = async () => {
+    setTestStatus({ loading: true, message: 'Sending test request...' });
+    triggerHaptic('light');
+
+    try {
+      if (aiProvider === 'custom') {
+        if (!customApiUrl.trim()) {
+          throw new Error('Please enter a Custom API Endpoint URL first.');
+        }
+        await enrichWithCustomAi(
+          {
+            platform: 'text',
+            rawShareText: 'Quick integration test for Drop Library custom AI provider',
+          },
+          {
+            apiUrl: customApiUrl.trim(),
+            apiKey: customApiKey.trim(),
+            model: customModel.trim() || 'meta-llama/llama-3.3-70b-instruct',
+          }
+        );
+        setTestStatus({
+          loading: false,
+          success: true,
+          message: `Connected successfully! Provider responded with valid metadata.`,
+        });
+        triggerHaptic('success');
+      } else {
+        if (!apiKey.trim()) {
+          throw new Error('Please enter your Google AI Studio API key first.');
+        }
+        await enrichWithGemini({
+          platform: 'text',
+          rawShareText: 'Quick integration test for Drop Library Gemini AI',
+        });
+        setTestStatus({
+          loading: false,
+          success: true,
+          message: `Connected successfully! ${model} responded with valid metadata.`,
+        });
+        triggerHaptic('success');
+      }
+    } catch (err: unknown) {
+      console.error('[SettingsModal] Test connection failed:', err);
+      setTestStatus({
+        loading: false,
+        success: false,
+        message: (err as Error)?.message || String(err),
+      });
+      triggerHaptic('error');
+    }
+  };
 
   const showFeedback = (msg: string) => {
     setFeedbackMessage(msg);
@@ -619,6 +681,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 ? 'Active engine. If this provider is unreachable or fails, Drop Library automatically falls back to Google Gemini.'
                 : 'Automatic Fallback: If Google Gemini hits rate limits (429) or quota errors, Drop Library will seamlessly switch to this provider.'}
             </p>
+
+            {/* Test Connection Button & Live Feedback */}
+            <div className="pt-1 space-y-2">
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={testStatus?.loading}
+                className="w-full py-2 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.1] text-xs font-medium text-neutral-200 flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+              >
+                <Activity
+                  className={`w-3.5 h-3.5 ${
+                    testStatus?.loading ? 'animate-spin text-amber-400' : 'text-neutral-400'
+                  }`}
+                />
+                <span>
+                  {testStatus?.loading
+                    ? 'Testing Connection...'
+                    : `Test ${aiProvider === 'custom' ? 'Custom Provider' : 'Gemini'} Connection`}
+                </span>
+              </button>
+
+              {testStatus && !testStatus.loading && (
+                <div
+                  className={`p-2.5 rounded-xl border text-xs flex items-start space-x-2 leading-relaxed ${
+                    testStatus.success
+                      ? 'bg-emerald-500/[0.08] border-emerald-500/30 text-emerald-300'
+                      : 'bg-rose-500/[0.08] border-rose-500/30 text-rose-300'
+                  }`}
+                >
+                  {testStatus.success ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 break-words font-mono text-[11px]">
+                    {testStatus.message}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Unfurl Server Endpoint */}

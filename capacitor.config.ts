@@ -14,6 +14,9 @@ const config: CapacitorConfig = {
       backgroundColor: '#0A0A0A',
       style: 'DARK', // light content on dark background
     },
+    CapacitorHttp: {
+      enabled: true,
+    },
   },
 };
 

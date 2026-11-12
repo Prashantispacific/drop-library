@@ -18,7 +18,7 @@ export interface CustomAiConfig {
 }
 
 /**
- * Resolves standard OpenAI-compatible /chat/completions endpoint.
+ * Normalizes OpenAI-compatible /chat/completions endpoint.
  */
 function resolveChatCompletionsUrl(baseUrl: string): string {
   let clean = baseUrl.trim().replace(/\/+$/, '');
@@ -29,22 +29,44 @@ function resolveChatCompletionsUrl(baseUrl: string): string {
 }
 
 /**
- * Extracts and parses JSON from model output, handling optional markdown code fences.
+ * Checks if a model ID is known to support multimodal image inputs.
+ */
+function isVisionCapableModel(modelId: string): boolean {
+  return /vision|vl|gpt-4|gemini|claude|pixtral|llava|qwen.*vl/i.test(modelId);
+}
+
+/**
+ * Extracts and cleans JSON from AI outputs, removing <think> tags and markdown code blocks.
  */
 function extractJson(rawText: string): unknown {
-  let clean = rawText.trim();
+  // 1. Strip reasoning blocks (DeepSeek R1, QwQ, etc.)
+  let clean = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+  // 2. Extract from markdown code fences (```json ... ```)
   const fenceMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (fenceMatch) {
     clean = fenceMatch[1].trim();
   }
-  return JSON.parse(clean);
+
+  // 3. Direct JSON parse
+  try {
+    return JSON.parse(clean);
+  } catch {
+    // 4. Bracket search fallback
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      return JSON.parse(clean.slice(firstBrace, lastBrace + 1));
+    }
+    throw new Error(`Failed to parse AI output as JSON: ${clean.slice(0, 150)}`);
+  }
 }
 
 /**
- * Builds standard system prompt for universal knowledge vault structuring.
+ * Builds universal system prompt enforcing valid JSON output.
  */
 function buildSystemPrompt(isTextNote: boolean): string {
-  return `You are the AI Librarian for "Drop Library", a personal knowledge vault.
+  return `You are the AI Librarian for "Drop Library", a minimalist personal knowledge vault.
 Analyze the provided content and extract strictly structured metadata.
 
 INSTRUCTIONS:
@@ -64,20 +86,83 @@ ${
 5. searchSynonyms: 5 to 8 lowercase search query variations a user might type when looking for this.`
 }
 
-CRITICAL: Return ONLY a valid JSON object matching this exact schema:
+CRITICAL: Return ONLY a valid JSON object matching this schema:
 {
   "title": "string",
   "tldr": "string",
   "category": "reel" | "article" | "essay" | "tool" | "quote" | "inspo",
   "tags": ["tag1", "tag2"],
-  "searchSynonyms": ["synonym1", "synonym2"],
-  "authorOrHandle": "string (optional)",
-  "estimatedReadMinutes": 2 (optional number)
+  "searchSynonyms": ["synonym1", "synonym2"]
 }`;
 }
 
 /**
+ * Sends HTTP request to OpenAI-compatible endpoint with automatic fallback to serverless proxy if CORS fails.
+ */
+async function postOpenAiRequest(
+  endpoint: string,
+  headers: Record<string, string>,
+  payload: unknown
+): Promise<string> {
+  const payloadString = JSON.stringify(payload);
+
+  // Attempt 1: Direct client request
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: payloadString,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
+    }
+    return text;
+  } catch (directErr: unknown) {
+    const errString = String(directErr);
+    const isCorsOrNetwork =
+      errString.includes('Failed to fetch') ||
+      errString.includes('NetworkError') ||
+      errString.includes('CORS');
+
+    // Attempt 2: If on Web and hit CORS error, route through Netlify proxy function
+    if (isCorsOrNetwork && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')) {
+      console.warn(`[Custom AI] Direct fetch failed with CORS/network error. Retrying via Netlify serverless proxy...`);
+      try {
+        const proxyRes = await fetch('/.netlify/functions/aiProxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint,
+            headers,
+            body: payload,
+          }),
+        });
+
+        const proxyText = await proxyRes.text();
+        if (!proxyRes.ok) {
+          throw new Error(`Proxy HTTP ${proxyRes.status}: ${proxyText.slice(0, 300)}`);
+        }
+        return proxyText;
+      } catch (proxyErr) {
+        console.error(`[Custom AI] Proxy request also failed:`, proxyErr);
+        throw directErr;
+      }
+    }
+
+    throw directErr;
+  }
+}
+
+/**
  * Calls any OpenAI-compatible API endpoint (OpenRouter, NVIDIA NIM, Groq, Ollama, Together, etc.)
+ * with auto-repair for vision vs text-only models and response_format compatibility.
  */
 export async function enrichWithCustomAi(
   input: CustomAiInput,
@@ -89,6 +174,7 @@ export async function enrichWithCustomAi(
   }
 
   const endpoint = resolveChatCompletionsUrl(apiUrl);
+  const modelName = model?.trim() || 'meta-llama/llama-3.3-70b-instruct';
   const isTextNote = input.platform === 'text';
   const systemPrompt = buildSystemPrompt(isTextNote);
 
@@ -107,27 +193,14 @@ export async function enrichWithCustomAi(
   const promptText = `Content details:
 - Platform: ${input.platform}
 - URL: ${input.url || 'None'}
-- Raw Content / Note: ${input.rawShareText ? input.rawShareText.slice(0, 3000) : 'None'}
+- Raw Note / Content: ${input.rawShareText ? input.rawShareText.slice(0, 3000) : 'None'}
 - User Intent Tag: ${input.quickNote || 'None'}
 - Page Title: ${input.unfurlData?.title || 'None'}
 - Description: ${input.unfurlData?.description || 'None'}
 - Author: ${input.unfurlData?.author || 'None'}`;
 
-  // Assemble user message (multimodal if image exists, text-only otherwise)
-  let userContent: unknown;
-  if (base64Data) {
-    userContent = [
-      { type: 'text', text: promptText },
-      {
-        type: 'image_url',
-        image_url: {
-          url: `data:${mimeType};base64,${base64Data}`,
-        },
-      },
-    ];
-  } else {
-    userContent = promptText;
-  }
+  // Check if model supports vision before sending image_url
+  const canSendVision = Boolean(base64Data && isVisionCapableModel(modelName));
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -140,74 +213,65 @@ export async function enrichWithCustomAi(
     headers['X-Title'] = 'Drop Library';
   }
 
-  const requestPayload = {
-    model: model || 'meta-llama/llama-3.3-70b-instruct',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userContent },
-    ],
-    temperature: 0.2,
-    response_format: { type: 'json_object' },
+  // Construct message payload
+  const buildPayload = (includeVision: boolean, includeJsonFormat: boolean) => {
+    let userContent: unknown;
+    if (includeVision && base64Data) {
+      userContent = [
+        { type: 'text', text: promptText },
+        {
+          type: 'image_url',
+          image_url: {
+            url: `data:${mimeType};base64,${base64Data}`,
+          },
+        },
+      ];
+    } else {
+      userContent = promptText;
+    }
+
+    const payload: Record<string, unknown> = {
+      model: modelName,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ],
+      temperature: 0.2,
+    };
+
+    if (includeJsonFormat) {
+      payload.response_format = { type: 'json_object' };
+    }
+
+    return payload;
   };
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000);
+  let rawResponseBody: string;
 
-  let response: Response;
+  // Attempt 1: Optimal request (multimodal if vision model, with json_object format)
   try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestPayload),
-      signal: controller.signal,
-    });
-  } catch (fetchErr: unknown) {
-    clearTimeout(timeoutId);
-    // If response_format failed (some providers reject it), retry without response_format
-    throw new Error(`Failed to connect to Custom API at ${endpoint}: ${(fetchErr as Error)?.message || String(fetchErr)}`);
-  }
+    const payload1 = buildPayload(canSendVision, true);
+    rawResponseBody = await postOpenAiRequest(endpoint, headers, payload1);
+  } catch (err1: unknown) {
+    console.warn(`[Custom AI] Attempt 1 failed (${(err1 as Error)?.message}). Trying Auto-Repair (text-only & standard JSON)...`);
 
-  // Fallback: If 400 Bad Request mentions response_format, retry once without response_format
-  if (response.status === 400) {
-    const errorText = await response.text();
-    if (errorText.toLowerCase().includes('response_format')) {
-      const fallbackPayload = {
-        model: requestPayload.model,
-        messages: requestPayload.messages,
-        temperature: 0.2,
-      };
-      response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(fallbackPayload),
-        signal: controller.signal,
-      });
-    } else {
-      clearTimeout(timeoutId);
-      throw new Error(`Custom API returned 400: ${errorText.slice(0, 200)}`);
+    // Attempt 2: Auto-Repair (text-only prompt without response_format to support models that reject vision or json_object)
+    try {
+      const payload2 = buildPayload(false, false);
+      rawResponseBody = await postOpenAiRequest(endpoint, headers, payload2);
+    } catch (err2: unknown) {
+      console.error(`[Custom AI] Auto-Repair request also failed:`, err2);
+      throw err2;
     }
   }
 
-  clearTimeout(timeoutId);
-
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => '');
-    throw new Error(`Custom API returned HTTP ${response.status}: ${errBody.slice(0, 200)}`);
-  }
-
-  const data = await response.json();
+  const data = JSON.parse(rawResponseBody);
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error('Empty response content received from Custom AI provider');
   }
 
-  let parsedJson: unknown;
-  try {
-    parsedJson = extractJson(content);
-  } catch {
-    throw new Error(`Failed to parse Custom AI output as JSON: ${content.slice(0, 100)}`);
-  }
-
+  const parsedJson = extractJson(content);
   const validated = GeminiMetaSchema.parse(parsedJson);
 
   return {
