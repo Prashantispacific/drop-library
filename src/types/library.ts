@@ -1,4 +1,3 @@
-import { z } from 'zod';
 
 export type PlatformType = 'instagram' | 'youtube' | 'web' | 'text' | 'image';
 export type ItemCategory = 'reel' | 'article' | 'essay' | 'tool' | 'quote' | 'inspo';
@@ -39,6 +38,7 @@ export interface LibraryItem {
 export interface UserSettings {
   geminiApiKey: string;
   geminiModel: string;
+  geminiBaseUrl?: string; // Optional custom Gemini API URL or reverse proxy / AI gateway
   unfurlEndpoint: string;
   themeMode: 'oled' | 'true-black';
   autoEnrich: boolean;

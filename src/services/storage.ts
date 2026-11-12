@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   // BYOK model: Never hardcode or inline API keys into the client bundle
   geminiApiKey: '',
   geminiModel: 'gemini-2.5-flash',
+  geminiBaseUrl: '',
   unfurlEndpoint: import.meta.env.VITE_UNFURL_ENDPOINT || '',
   themeMode: 'oled',
   autoEnrich: true,

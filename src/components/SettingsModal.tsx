@@ -21,6 +21,7 @@ import {
   CornerUpLeft,
   Sliders,
   Plus,
+  Server,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -75,6 +76,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [apiKey, setApiKey] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('gemini-2.5-flash');
   const [showCustomModel, setShowCustomModel] = useState(false);
   const [customModelInput, setCustomModelInput] = useState('');
@@ -101,6 +103,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     storage.getSettings().then((s) => {
       setSettings(s);
       setApiKey(s.geminiApiKey || '');
+      setBaseUrl(s.geminiBaseUrl || '');
       const loadedModel = s.geminiModel || 'gemini-2.5-flash';
       setModel(loadedModel);
       const isKnown = SUPPORTED_MODELS.some((m) => m.id === loadedModel);
@@ -131,6 +134,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     const updated = await storage.saveSettings({
       geminiApiKey: apiKey.trim(),
+      geminiBaseUrl: baseUrl.trim(),
       geminiModel: model.trim(),
       unfurlEndpoint: unfurlEndpoint.trim(),
       themeMode,
@@ -249,6 +253,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             />
             <p className="text-[11px] text-neutral-500 leading-relaxed">
               Public repo safe: Kept strictly on-device in IndexedDB. Never transmitted to third parties.
+            </p>
+          </div>
+
+          {/* Custom Gemini API URL / Gateway / Fallback */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-neutral-300 flex items-center space-x-1.5">
+                <Server className="w-3.5 h-3.5 text-amber-400" />
+                <span>Custom Gemini API URL (Optional)</span>
+              </label>
+              <span className="text-[10px] text-amber-400/80 font-mono">
+                {baseUrl ? 'Proxy Active' : 'Official Google AI'}
+              </span>
+            </div>
+            <input
+              type="url"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="e.g. https://gateway.ai.cloudflare.com/... or https://my-proxy.com"
+              className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-amber-400/40 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
+            />
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              Default is official Google AI Studio. Set a custom proxy, Cloudflare AI Gateway, or LiteLLM URL to bypass regional blocks. If unreachable, the app automatically falls back to official Google endpoints.
             </p>
           </div>
 

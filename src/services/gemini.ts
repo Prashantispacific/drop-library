@@ -137,24 +137,36 @@ const GEMINI_RESPONSE_SCHEMA = {
 };
 
 /**
- * Enriches a library item using Google AI Studio Gemini API with strict structured JSON output.
+ * Strips trailing slashes from custom API URL.
  */
-export async function enrichWithGemini(input: EnrichInput): Promise<LibraryItemMeta> {
-  const settings = await storage.getSettings();
-  const apiKey = settings.geminiApiKey?.trim();
+function cleanBaseUrl(url?: string): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  return trimmed.replace(/\/+$/, '');
+}
 
-  if (!apiKey) {
-    throw new Error('MISSING_API_KEY: Please configure your Google AI Studio API key in Settings.');
+/**
+ * Executes a structured content generation call with GoogleGenAI SDK.
+ */
+async function callGemini(
+  apiKey: string,
+  modelName: string,
+  contents: ReturnType<typeof buildGeminiContents>,
+  baseUrl?: string
+): Promise<string> {
+  const httpOptions: { apiVersion: string; baseUrl?: string } = {
+    apiVersion: 'v1beta',
+  };
+  const cleanedUrl = cleanBaseUrl(baseUrl);
+  if (cleanedUrl) {
+    httpOptions.baseUrl = cleanedUrl;
   }
-
-  // Use configured model or fallback
-  const modelName = settings.geminiModel || 'gemini-2.5-flash';
 
   const ai = new GoogleGenAI({
     apiKey,
-    httpOptions: { apiVersion: 'v1beta' },
+    httpOptions,
   });
-  const contents = buildGeminiContents(input);
 
   const response = await ai.models.generateContent({
     model: modelName,
@@ -169,6 +181,73 @@ export async function enrichWithGemini(input: EnrichInput): Promise<LibraryItemM
   const responseText = response.text;
   if (!responseText) {
     throw new Error('Empty response received from Gemini');
+  }
+  return responseText;
+}
+
+/**
+ * Enriches a library item using Google AI Studio Gemini API with strict structured JSON output.
+ * Supports custom base URLs (proxies, Cloudflare AI Gateway, LiteLLM) and automatic fallback.
+ */
+export async function enrichWithGemini(input: EnrichInput): Promise<LibraryItemMeta> {
+  const settings = await storage.getSettings();
+  const apiKey = settings.geminiApiKey?.trim();
+
+  if (!apiKey) {
+    throw new Error('MISSING_API_KEY: Please configure your Google AI Studio API key in Settings.');
+  }
+
+  // Use configured model and optional custom URL
+  const primaryModel = settings.geminiModel || 'gemini-2.5-flash';
+  const customBaseUrl = settings.geminiBaseUrl?.trim();
+  const contents = buildGeminiContents(input);
+
+  let responseText: string | undefined;
+
+  // 1. Primary Attempt (custom proxy/URL if set, otherwise official Google endpoint)
+  try {
+    responseText = await callGemini(apiKey, primaryModel, contents, customBaseUrl);
+  } catch (primaryErr: unknown) {
+    console.warn(
+      `[Gemini] Primary request failed (model: ${primaryModel}, url: ${customBaseUrl || 'default'}):`,
+      primaryErr
+    );
+
+    // Fallback 1: If custom URL was configured and failed (e.g. gateway down, proxy error),
+    // automatically fall back to the official Google AI Studio endpoint
+    if (customBaseUrl) {
+      console.info(
+        `[Gemini] Custom API URL failed. Automatically falling back to official Google AI Studio endpoint...`
+      );
+      try {
+        responseText = await callGemini(apiKey, primaryModel, contents, undefined);
+      } catch (officialErr) {
+        console.warn(`[Gemini] Fallback to official endpoint also failed:`, officialErr);
+      }
+    }
+
+    // Fallback 2: If primary model failed (quota / rate limit 429 / 503) and model is not 'gemini-2.0-flash',
+    // attempt resilient fallback to stable 'gemini-2.0-flash'
+    if (!responseText && primaryModel !== 'gemini-2.0-flash') {
+      const fallbackModel = 'gemini-2.0-flash';
+      console.info(`[Gemini] Attempting fallback model: ${fallbackModel}...`);
+      try {
+        responseText = await callGemini(apiKey, fallbackModel, contents, customBaseUrl);
+      } catch {
+        if (customBaseUrl) {
+          try {
+            responseText = await callGemini(apiKey, fallbackModel, contents, undefined);
+          } catch {
+            // Keep original error
+          }
+        }
+      }
+    }
+
+    // If all attempts failed, throw the primary error so queueWorker can create heuristic fallback
+    if (!responseText) {
+      throw primaryErr;
+    }
   }
 
   // Parse and validate with runtime Zod schema
