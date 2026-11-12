@@ -6,14 +6,14 @@
 
 ## 1. System Topology & End-to-End Flow
 
-Drop Library is engineered around a single unified TypeScript codebase powering both a native Android APK (via Capacitor 8) and a desktop/mobile Progressive Web App (PWA), supported by a zero-cost Netlify Edge serverless unfurler.
+Drop Library is engineered around a unified TypeScript architecture powering a native Android application (via Capacitor 8), supported by an edge serverless metadata unfurler.
 
 ### End-to-End Data Pipeline
 
 ```mermaid
 flowchart TD
-    subgraph Client["1. Android Native & Web Client"]
-        A[User shares link / text / image<br/>from Instagram, YouTube, Chrome] -->|ACTION_SEND / Web Share| B(Native Share Target Bridge<br/>@capgo/capacitor-share-target v8)
+    subgraph Client["1. Android Native Client"]
+        A[User shares link / text / image<br/>from Instagram, YouTube, Chrome] -->|ACTION_SEND Intent| B(Native Share Target Bridge<br/>@capgo/capacitor-share-target v8)
         B --> C{Cold-Start Buffer<br/>React mounted?}
         C -->|No| D[Buffer Intent in Memory]
         C -->|Yes| E[Dispatch to React App.tsx]

@@ -1,7 +1,22 @@
 {
   "name": "drop-library",
-  "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Zero-friction personal knowledge & media vault for Android. Instant sub-2s capture for Instagram Reels, YouTube videos, articles, and notes with Gemini AI multimodal structuring and offline-first IndexedDB storage.",
+  "keywords": [
+    "android",
+    "capacitor",
+    "gemini-ai",
+    "knowledge-vault",
+    "read-later",
+    "share-target",
+    "offline-first",
+    "multimodal-ai",
+    "ocr",
+    "byok",
+    "fuse-search",
+    "personal-library"
+  ],
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
