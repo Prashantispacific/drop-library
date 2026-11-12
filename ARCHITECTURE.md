@@ -48,12 +48,16 @@ flowchart TD
         V --> O
     end
 
-    subgraph AI["4. Gemini Multimodal Structuring"]
-        O --> W["Assemble Multimodal Payload<br/>Thumbnail Base64 + Article Text + User Intent"]
+    subgraph AI["4. Dual-Engine Multimodal Structuring"]
+        O --> W["Assemble Payload<br/>Thumbnail Base64 + Article Text + User Intent"]
         N --> W
-        W --> X["Google GenAI SDK<br/>Direct Client-to-API BYOK"]
-        X --> Y["Gemini 4 / 3.5 Flash-Lite / 3.8 Flash<br/>Strict responseSchema + Low Temp 0.2"]
-        Y --> Z["Runtime Zod Validation<br/>GeminiMetaSchema"]
+        W --> EA{"Engine Selection"}
+        EA -->|"Default Primary"| X["Google GenAI SDK<br/>Gemini 4 / 3.8 / 3.5"]
+        EA -->|"Fallback / Custom"| EB["OpenAI Fetch Client<br/>OpenRouter / NVIDIA NIM / Groq / Ollama"]
+        X --> Y["Strict responseSchema<br/>Low Temp 0.2"]
+        EB --> EC["Auto-Repair & Vision Filter<br/>Strip <think> & Modality Recheck"]
+        Y --> Z["Runtime Zod Validation<br/>FlexibleCategorySchema"]
+        EC --> Z
     end
 
     subgraph Storage["5. Persistent Vault & Fuzzy Search"]
@@ -151,31 +155,43 @@ flowchart TD
 
 ---
 
-## 4. Gemini Multimodal OCR & Semantic Structuring
+## 4. Dual AI Structuring: Gemini Multimodal & Custom Provider Fallback
 
 Creators on Instagram and YouTube often leave caption text minimal, placing the key hook or title directly onto the video cover frame. Passing only textual URLs to an LLM produces generic summaries.
 
-Drop Library solves this by using **Multimodal Vision** in `@google/genai`:
+Drop Library solves this by using a **Dual-Engine AI Pipeline** with multimodal vision and automatic fallback:
 
 ```mermaid
-flowchart LR
-    A["Raw URL / Note"] --> D["buildGeminiContents"]
-    B["Base64 Thumbnail"] -->|"inlineData: image/jpeg"| D
-    C["User Intent Tag"] --> D
-
-    D --> E["Gemini 4 / 3.5 Flash-Lite / 3.8 Flash"]
+flowchart TD
+    In["Drop Input Payload<br/>(URL, Thumbnail Base64, Note, QuickIntent)"] --> CheckEngine{"Active AI Engine"}
     
-    subgraph Config["SDK Config"]
-        F["temperature: 0.2"]
-        G["responseMimeType: application/json"]
-        H["responseSchema: Type.OBJECT"]
-    end
+    CheckEngine -->|"Google Gemini (Default)"| GCall["enrichWithGemini()<br/>Gemini 4 / 3.8 / 3.5 via @google/genai"]
+    GCall --> GCheck{"Status / Quota?"}
+    GCheck -->|"200 OK"| Parse["Parse Structured JSON"]
+    GCheck -->|"429 Rate Limit / Error"| Fallback["Trigger Custom Provider Fallback"]
+    
+    CheckEngine -->|"Custom Provider"| Fallback
+    Fallback --> CCall["enrichWithCustomAi()<br/>OpenRouter / NVIDIA NIM / Groq / Ollama"]
+    CCall --> VisionCheck{"isVisionCapableModel?"}
+    VisionCheck -->|"Yes (Vision Model)"| VReq["Send multimodal image_url"]
+    VisionCheck -->|"No (Text Model)"| TReq["Send sanitized text prompt"]
+    VReq --> NetExec["Execute Request via CapacitorHttp / aiProxy"]
+    TReq --> NetExec
+    NetExec --> AutoRepair{"400 / 422 Error?"}
+    AutoRepair -->|"Yes"| Retry["Auto-Repair: Sanitize to plain text without response_format"]
+    AutoRepair -->|"No"| CParse["Strip <think> tags & extract JSON"]
+    Retry --> CParse
+    CParse --> Parse
 
-    Config --> E
-    E --> I["Structured JSON Output"]
-    I --> J["Runtime Zod Validation<br/>GeminiMetaSchema"]
-    J --> K["LibraryItem.meta"]
+    Parse --> Zod["Zod Validation & Normalization<br/>FlexibleCategorySchema"]
+    Zod --> Update["Save to IndexedDB (status: 'enriched')"]
 ```
+
+### Multimodal Vision & Auto-Repair Logic:
+1. **Vision-Capable Filtering:** Before attaching `image_url` data URLs to OpenAI-compatible payloads, `isVisionCapableModel()` inspects the model ID. If the model is text-only (e.g. `meta-llama/llama-3.3-70b-instruct`, `llama-3.3-70b-versatile`), thumbnail image tokens are omitted to prevent `HTTP 400 Bad Request` modality errors.
+2. **Two-Tier Auto-Repair:** If a provider rejects `response_format: { type: "json_object" }` or modality formats, the engine automatically catches the error and resends a simplified plain-text request.
+3. **Reasoning Tag Stripping:** DeepSeek R1 and QwQ models frequently wrap chain-of-thought in `<think>...</think>` blocks. The extractor strips reasoning tags before isolating the JSON object.
+4. **Flexible Schema Normalization:** Open-source models occasionally emit plural categories (e.g. `"articles"` instead of `"article"`) or comma-separated tag strings. `FlexibleCategorySchema` normalizes these into the canonical schema without throwing Zod errors.
 
 ### JSON Schema & Zod Definition:
 ```typescript
@@ -192,7 +208,7 @@ flowchart LR
 
 ### Why Search Synonyms Matter:
 A reel demonstrating the 50/30/20 budgeting rule might be titled *"Stop doing this in 2026"*. 
-Gemini generates search synonyms:
+The AI generates search synonyms:
 `["personal finance", "budgeting method", "saving money", "50 30 20 rule", "wealth building"]`
 
 When a user types **"how to save money"** in Fuse.js, the item matches with high precision even though those words never appeared in the video's original title or caption.
@@ -231,6 +247,9 @@ Building high-performance hybrid applications requires overcoming subtle OS-leve
 | **Expiring Shared Media Files** | `@capgo/capacitor-share-target` writes shared images to Android's temporary cache (`/data/user/0/.../cache`), which the OS deletes after hours or days. | Read file bytes through `@capacitor/filesystem` immediately upon share and persist as persistent Base64 Data URLs in IndexedDB. |
 | **Kotlin JDK Toolchain Failure** | `@capacitor/filesystem` v8 defaults to Kotlin `jvmToolchain(21)`, failing on development machines configured with JDK 17. | Added a project-level override in `android/build.gradle`: `project.kotlin { jvmToolchain(17) }`. |
 | **Hardware Back Button Traps** | Android's hardware back gesture was either closing the entire application or behaving inconsistently with modals open. | Implemented hierarchical back-stack handlers via `@capacitor/app`. Pressing back closes sub-modals (e.g. Delete Confirm) &rarr; closes Detail Drawer &rarr; minimizes app. |
+| **CORS on Custom AI Endpoints (NVIDIA NIM)** | Browser fetch from Web client rejected by NVIDIA NIM due to missing CORS headers. | Enabled native `CapacitorHttp` (OkHttp) in `capacitor.config.ts` on Android, and transparent serverless proxy `netlify/functions/aiProxy.ts` on Web. |
+| **Vision Modality Rejection on Llama 3.3** | Sending image payloads to text-only LLMs resulted in `HTTP 400: Model does not support image input`. | Added `isVisionCapableModel` gate and two-tier Auto-Repair retry logic in `src/services/customAi.ts`. |
+| **Mobile Model Picker Screen Bloat** | Displaying full model cards permanently created excessive vertical scrolling on phones. | Added collapsible/expandable accordion panels (~44px collapsed) and stored custom models in IndexedDB (`savedGeminiModels`, `savedCustomModels`) for 1-tap switching. |
 
 ---
 
@@ -245,24 +264,25 @@ Building high-performance hybrid applications requires overcoming subtle OS-leve
                               ▼
 +-------------------------------------------------------------+
 |                    Client Device (Phone)                    |
-|  - Gemini API Key stored in sandboxed local IndexedDB       |
+|  - Gemini & Custom AI Keys stored in sandboxed IndexedDB    |
 |  - Content stored locally on-device                         |
-|  - Connects directly to generativelanguage.googleapis.com   |
+|  - Direct to Google API or OpenAI-Compatible Endpoints      |
 +-------------------------------------------------------------+
                               │
-                (Anonymous URL unfurl only)
+                (Anonymous URL unfurl & Web CORS only)
                               ▼
 +-------------------------------------------------------------+
-|               Netlify Edge Serverless Unfurler              |
+|            Netlify Edge Serverless (unfurl & aiProxy)       |
 |  - Crawls public OpenGraph metadata & Readability HTML      |
-|  - Zero credentials, zero database, zero user tracking      |
+|  - Transparent AI CORS proxy for web clients                |
+|  - Zero credentials logged, zero database, zero telemetry   |
 +-------------------------------------------------------------+
 ```
 
-1. **Strict BYOK (Bring Your Own Key):** Each user enters their personal free-tier Google AI Studio API key in settings. The key is stored solely in client-side IndexedDB.
-2. **Zero Middleman Relay:** Gemini API calls are made directly from the client to Google's endpoints. No intermediate servers log or proxy your API calls.
-3. **Stateless Edge Crawling:** The Netlify serverless function is completely stateless, requiring no credentials or database.
+1. **Strict BYOK (Bring Your Own Key):** Each user enters their personal free-tier Google AI Studio API key and/or Custom Provider key (OpenRouter, NVIDIA, Groq) in settings. Keys are stored solely in client-side IndexedDB.
+2. **Direct-to-Provider Communication:** On Android, `CapacitorHttp` connects directly from the device to Google or custom AI providers via native OkHttp.
+3. **Stateless Edge Crawling & Web Proxy:** Netlify serverless functions (`unfurl.ts` and `aiProxy.ts`) are completely stateless, logging no keys and storing zero user data.
 4. **$0 Operating Cost:**
    - Netlify Functions: 125,000 free requests/month.
-   - Google AI Studio: Free tier for Gemini Flash models (15 RPM).
+   - Google AI Studio: Free tier for Gemini models (15 RPM).
    - Storage: Local IndexedDB (unlimited within device capacity).

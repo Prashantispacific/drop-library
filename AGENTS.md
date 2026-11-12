@@ -11,7 +11,7 @@
 - **Mobile Client:** Native Android application via **Capacitor 8** (`com.droplibrary.app`), featuring sub-2s capture via Android Share Target (`ACTION_SEND`).
 - **Web Client:** Responsive PWA deployed on **Netlify** (`https://drop-vault-pg.netlify.app/`).
 - **Edge Functions:** Netlify Serverless Functions for metadata scraping and OpenGraph extraction (`netlify/functions/unfurl.ts`).
-- **AI Engine:** Client-side multimodal OCR, summarization, categorization, and fuzzy synonym indexing via the official **Google GenAI SDK** (`@google/genai`).
+- **AI Engine:** Client-side multimodal OCR, summarization, categorization, and fuzzy synonym indexing via the official **Google GenAI SDK** (`@google/genai`) with automatic fallback to **Custom OpenAI-Compatible Providers** (OpenRouter, NVIDIA NIM, Groq, Ollama via `customAi.ts`).
 
 ---
 
@@ -42,10 +42,10 @@
 | **Frontend Framework** | React 19, TypeScript 5, Vite 6 (Rolldown bundler) |
 | **Styling** | Tailwind CSS 3, Lucide React icons |
 | **Client Storage & Search** | `idb-keyval` (IndexedDB wrapper), `Fuse.js` (client-side fuzzy search) |
-| **Validation** | `Zod` (strict schema validation of Gemini structured JSON output) |
-| **Mobile Runtime** | Capacitor 8 (`@capacitor/core`, `@capacitor/android`, `@capacitor/app`, `@capacitor/haptics`, `@capacitor/toast`, `@capacitor/status-bar`, `@capgo/capacitor-share-target`) |
-| **Edge Serverless** | Netlify Functions (`open-graph-scraper`, `linkedom`, `@mozilla/readability`) |
-| **AI SDK** | `@google/genai` (Gemini 4 Hydrogen/Argon/Carbon, 3.5 Flash-Lite, 3.8 Flash, etc.) |
+| **Validation** | `Zod` (strict schema validation of Gemini & Custom AI structured output) |
+| **Mobile Runtime** | Capacitor 8 (`@capacitor/core`, `@capacitor/android`, `@capacitor/app`, `@capacitor/haptics`, `@capacitor/toast`, `@capacitor/status-bar`, `@capgo/capacitor-share-target`, `CapacitorHttp`) |
+| **Edge Serverless** | Netlify Functions (`open-graph-scraper`, `linkedom`, `@mozilla/readability`, `aiProxy.ts`) |
+| **AI SDK & Providers** | Official `@google/genai` SDK + OpenAI-compatible Fetch client (OpenRouter, NVIDIA NIM, Groq, Ollama) |
 | **Linter** | `oxlint` |
 
 ---
@@ -58,8 +58,9 @@ Drop-Library/
 ├── ARCHITECTURE.md            # In-depth architectural blueprint and Mermaid workflows
 ├── AGENTS.md                  # This AI agent reference manual
 ├── README.md                  # User-facing features and BYOK documentation
+├── guide.html                 # Comprehensive interactive engineering & decision matrix manual
 ├── netlify.toml               # Netlify build, redirects, and function bundler configuration
-├── capacitor.config.ts        # Capacitor project configuration
+├── capacitor.config.ts        # Capacitor project configuration (with CapacitorHttp)
 ├── package.json               # Dependencies and scripts
 │
 ├── src/
@@ -67,16 +68,18 @@ Drop-Library/
 │   ├── native/                # Capacitor platform bridge & share-target listeners (bridge.ts)
 │   ├── services/
 │   │   ├── gemini.ts          # Multimodal payload assembler, Gemini SDK caller & Zod parser
-│   │   ├── queueWorker.ts     # Offline-first reconciliation loop for pending drops
-│   │   ├── storage.ts         # IndexedDB persistence (items and user settings)
+│   │   ├── customAi.ts        # OpenAI-compatible API client, vision-capability gate & auto-repair loop
+│   │   ├── queueWorker.ts     # Offline-first reconciliation loop with dual-engine AI fallback
+│   │   ├── storage.ts         # IndexedDB persistence (items, user settings, stored custom models)
 │   │   └── unfurlClient.ts    # Client for Netlify serverless scraper
 │   └── types/
 │       ├── library.ts         # Core TypeScript interfaces (LibraryItem, UserSettings, etc.)
-│       └── schema.ts          # Runtime Zod validation schemas
+│       └── schema.ts          # Runtime Zod validation schemas (FlexibleCategorySchema, etc.)
 │
 ├── netlify/
 │   └── functions/
-│       └── unfurl.ts          # Serverless link scraper, image fetcher, and Readability extractor
+│       ├── unfurl.ts          # Serverless link scraper, image fetcher, and Readability extractor
+│       └── aiProxy.ts         # Transparent web CORS proxy for OpenAI-compatible providers
 │
 └── android/                   # Native Android studio project (Gradle, AndroidManifest, assets)
     ├── app/

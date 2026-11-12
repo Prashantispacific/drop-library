@@ -9,13 +9,14 @@
 [![React 19](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Vite 6](https://img.shields.io/badge/Vite-6.0-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Tailwind CSS v4](https://img.shields.io/badge/Tailwind-v4.0-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![Google Gemini](https://img.shields.io/badge/Gemini_AI-2.5_Flash-4285F4?logo=google&logoColor=white)](https://aistudio.google.com/)
+[![Google Gemini](https://img.shields.io/badge/Gemini_AI-Gemini_4_%2F_3.8-4285F4?logo=google&logoColor=white)](https://aistudio.google.com/)
+[![Custom AI](https://img.shields.io/badge/Custom_AI-NVIDIA_%7C_Groq_%7C_OpenRouter-F59E0B?logo=openai&logoColor=white)](https://openrouter.ai/)
 [![Infrastructure Cost](https://img.shields.io/badge/Hosting_Cost-$0%2Fmo-10B981)](#-0-infrastructure-economics)
 
 **A personal, zero-friction, offline-first universal knowledge & media vault for Android.**  
 *Save Instagram Reels, YouTube videos, articles, quotes, and screenshots directly via the system Share Sheet without manual filing or note-taking.*
 
-[⬇️ **Download Latest APK (v1.0.0)**](https://github.com/Prashantispacific/drop-library/releases/download/v1.0.0/drop-library-v1.0.0.apk) • [**Architecture Deep-Dive**](./ARCHITECTURE.md) • [**Contributing**](./CONTRIBUTING.md) • [**Security Policy**](./SECURITY.md)
+[⬇️ **Download Latest APK (v1.0.0)**](https://github.com/Prashantispacific/drop-library/releases/download/v1.0.0/drop-library-v1.0.0.apk) • [**Architecture Deep-Dive**](./ARCHITECTURE.md) • [**Engineering Manual**](./guide.html) • [**Contributing**](./CONTRIBUTING.md) • [**Security Policy**](./SECURITY.md)
 
 </div>
 
@@ -23,7 +24,7 @@
 
 ## 🏷️ Repository Tags & Topics
 
-`android` • `capacitor` • `gemini-ai` • `knowledge-vault` • `read-later` • `share-target` • `offline-first` • `multimodal-ai` • `ocr` • `byok` • `personal-library` • `fuse-search`
+`android` • `capacitor` • `gemini-ai` • `openrouter` • `nvidia-nim` • `groq` • `ollama` • `knowledge-vault` • `read-later` • `share-target` • `offline-first` • `multimodal-ai` • `ocr` • `byok` • `personal-library` • `fuse-search`
 
 ---
 
@@ -34,9 +35,10 @@ Most "Read Later" and bookmarking apps suffer from **Folder Fatigue**: the momen
 **Drop Library is engineered for zero friction on Android:**
 1. **Sub-2-Second Capture:** Share any link, text note, or image from Instagram, YouTube, or your mobile browser. The app captures the intent immediately, shows a minimal translucent HUD (`Saved ✓`), and returns you to your source app within ~300ms.
 2. **Zero Video Downloads:** Never waste gigabytes downloading heavy MP4 files. The app stores canonical URLs, high-res preview metadata, and compact AI-structured JSON (~2 KB per drop).
-3. **Multimodal AI Librarian:** Powered by Google's Gemini SDK (`gemini-2.5-flash` / `gemini-3.5-flash-lite`). It performs optical character recognition (OCR) on video thumbnail hook text, writes concise summaries, classifies categories, and generates 5–8 search synonyms.
-4. **Instant 0ms Client-Side Search:** Full fuzzy search across titles, tags, and AI conceptual synonyms via `Fuse.js` running in-memory over `IndexedDB`.
-5. **100% Public-Repo Safe (BYOK):** Zero hardcoded API keys. Bring Your Own Key (free-tier Google AI Studio) stored securely in on-device IndexedDB.
+3. **Dual Multimodal AI Engines:** Powered natively by Google GenAI SDK (`gemini-4-carbon`, `gemini-4-argon`, `gemini-4-hydrogen`, `gemini-3.8-flash`, `gemini-3.5-flash-lite`) with seamless automatic fallback to **Custom OpenAI-Compatible Providers** (OpenRouter, NVIDIA NIM, Groq, Ollama). Performs OCR on video cover hook text, writes concise summaries, classifies categories, and generates 5–8 conceptual search synonyms.
+4. **Collapsible Panels & Persistent Stored Models:** Mobile-first accordion controls save screen space, while user-added custom models are persisted permanently in IndexedDB for 1-tap switching.
+5. **Instant 0ms Client-Side Search:** Full fuzzy search across titles, tags, and AI conceptual synonyms via `Fuse.js` running in-memory over `IndexedDB`.
+6. **100% Public-Repo Safe (BYOK):** Zero hardcoded API keys. Bring Your Own Key (Google AI Studio and/or OpenRouter/NVIDIA) stored strictly in on-device IndexedDB.
 
 ---
 
@@ -53,9 +55,14 @@ flowchart TD
     D -.-> G["Background Queue Worker"]
     G --> H["Netlify Serverless Unfurler<br/>unfurl.ts"]
     H --> I["Crawler Spoofing + Embed Fallback<br/>OpenGraph + Readability"]
-    I --> J["Gemini Multimodal AI<br/>Thumbnail OCR + Strict Schema"]
-    J --> K["IndexedDB Update<br/>status: 'enriched'"]
-    K --> L["Fuse.js In-Memory Search Index"]
+    
+    I --> J{"AI Engine"}
+    J -->|"Primary Engine"| K["Google Gemini SDK<br/>gemini-4 / 3.8 / 3.5"]
+    J -->|"Fallback / Custom"| L["OpenAI-Compatible Provider<br/>NVIDIA NIM / OpenRouter / Groq / Ollama"]
+    
+    K -->|"Zod Schema Validate"| M["IndexedDB Update<br/>status: 'enriched'"]
+    L -->|"Auto-Repair + Zod"| M
+    M --> N["Fuse.js In-Memory Search Index"]
 ```
 
 > 📖 **Want the full engineering breakdown?** Read [ARCHITECTURE.md](./ARCHITECTURE.md) for sequence diagrams, Android hardware bug fixes, and scraper waterfall details.
@@ -72,18 +79,22 @@ flowchart TD
 | 🖼️ **Multimodal Image Drops** | Share or drop images and infographics directly; Gemini automatically extracts on-screen text and details via OCR. |
 | 🏷️ **1-Tap Quick Intent Chips** | Instantly categorize drops on capture (`#toread`, `#inspo`, `#tool`, `#code`, `#quote`, `#project`). |
 | 🔄 **Offline-First Resilience** | Full local storage with `idb-keyval`. Enqueues drops offline and automatically reconciles when internet restores. |
-| 🔒 **Public-Repo Safe (BYOK)** | Bring Your Own Key model keeps Google AI Studio keys isolated in local device storage. |
+| 🤖 **Dual-Engine AI Fallback** | Default Google Gemini multimodal structuring with automatic fallback to OpenAI-compatible endpoints (OpenRouter, NVIDIA NIM, Groq, Ollama). |
+| 🎛️ **Collapsible Stored Models** | Accordion model controls prevent vertical scroll fatigue; store custom models permanently in IndexedDB for 1-tap switching. |
+| 🩺 **Self-Diagnostic Test** | Built-in "Test Connection" button validates API credentials, endpoint latency, and schema parsing before saving. |
+| 🔒 **Public-Repo Safe (BYOK)** | Bring Your Own Key model keeps all API keys strictly isolated inside local device storage. |
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Mobile Platform:** Native Android APK via Capacitor 8
+- **Mobile Platform:** Native Android APK via Capacitor 8 (`com.droplibrary.app`)
 - **Native Plugins:** `@capacitor/app`, `@capacitor/browser`, `@capacitor/filesystem`, `@capacitor/haptics`, `@capacitor/status-bar`, `@capgo/capacitor-share-target`
-- **Frontend Core:** React 19, Vite 6, TypeScript, Tailwind CSS v4
-- **Local Storage & Indexing:** `idb-keyval` (IndexedDB), `Fuse.js` (client-side fuzzy search)
+- **Network Engine:** Native `CapacitorHttp` (OkHttp) on Android for CORS immunity; Netlify serverless proxy (`aiProxy.ts`) for web client
+- **Frontend Core:** React 19, Vite 6, TypeScript, Tailwind CSS
+- **Local Storage & Indexing:** `idb-keyval` (IndexedDB), `Fuse.js` (in-memory fuzzy search)
 - **Edge Metadata Unfurler:** Netlify Serverless Functions (`open-graph-scraper`, `@mozilla/readability`, `linkedom`)
-- **AI Structuring:** Official `@google/genai` SDK with strict JSON Schema and runtime Zod validation
+- **AI Structuring:** Official `@google/genai` SDK + OpenAI-compatible Fetch client with strict Zod schema normalization & auto-repair
 - **Markdown Engine:** `marked` v18.2
 
 ---
@@ -115,7 +126,7 @@ cd android
 cd ..
 
 # 5. Stream install onto your connected Android phone
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r drop-library-v1.0.0.apk
 
 # 6. Launch app on device
 adb shell am start -n com.droplibrary.app/.MainActivity
@@ -125,11 +136,16 @@ adb shell am start -n com.droplibrary.app/.MainActivity
 
 ## 🔑 Bring Your Own Key (BYOK) Setup
 
-1. Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
-2. Open Drop Library on your Android phone.
-3. Tap the **Settings (gear icon)** at the top right.
-4. Paste your key into the **Google AI Studio Key** field and tap **Save Changes**.
-5. Your key is saved strictly in your device's private IndexedDB and never transmitted to any third-party server.
+1. **Google Gemini (Default):**
+   - Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+   - In Drop Library Settings, enter your key into **Google AI Studio Key**.
+   - Tap **"Test Gemini Connection"** to verify live connectivity.
+
+2. **Custom OpenAI-Compatible Provider (Fallback / Alternative):**
+   - Choose a preset (*OpenRouter*, *NVIDIA NIM*, *Groq*, or local *Ollama*) or enter your custom API Endpoint URL.
+   - Enter your provider API Key and choose a model (e.g. `meta-llama/llama-3.3-70b-instruct`, `deepseek/deepseek-r1`).
+   - Tap **"Test Custom Provider Connection"** to verify.
+   - All keys are stored strictly in client IndexedDB and never transmitted to intermediary servers.
 
 ---
 
