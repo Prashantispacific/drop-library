@@ -9,7 +9,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   // BYOK model: Never hardcode or inline API keys into the client bundle
   aiProvider: 'gemini',
   geminiApiKey: '',
-  geminiModel: 'gemini-2.5-flash',
+  geminiModel: 'gemini-3.5-flash-lite',
   geminiBaseUrl: '',
   customApiUrl: '',
   customApiKey: '',

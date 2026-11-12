@@ -45,7 +45,7 @@
 | **Validation** | `Zod` (strict schema validation of Gemini structured JSON output) |
 | **Mobile Runtime** | Capacitor 8 (`@capacitor/core`, `@capacitor/android`, `@capacitor/app`, `@capacitor/haptics`, `@capacitor/toast`, `@capacitor/status-bar`, `@capgo/capacitor-share-target`) |
 | **Edge Serverless** | Netlify Functions (`open-graph-scraper`, `linkedom`, `@mozilla/readability`) |
-| **AI SDK** | `@google/genai` (Gemini 2.5 Flash, 3.5 Flash Lite, etc.) |
+| **AI SDK** | `@google/genai` (Gemini 4 Hydrogen/Argon/Carbon, 3.5 Flash-Lite, 3.8 Flash, etc.) |
 | **Linter** | `oxlint` |
 
 ---

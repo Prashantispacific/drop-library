@@ -43,32 +43,46 @@ interface ModelOption {
 
 const SUPPORTED_MODELS: ModelOption[] = [
   {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    tag: 'Recommended',
-    badgeClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
-    description: 'Fast multimodal OCR, instant structuring & free-tier friendly.',
-  },
-  {
     id: 'gemini-3.5-flash-lite',
-    name: 'Gemini 3.5 Flash Lite',
-    tag: 'Lowest Latency',
-    badgeClass: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/25',
-    description: 'Ultra-low latency for instant background classification.',
+    name: 'Gemini 3.5 Flash-Lite',
+    tag: 'Recommended / Fast',
+    badgeClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
+    description: 'Fastest, most cost-effective model for high-throughput structuring.',
   },
   {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
-    tag: 'Deep Reasoning',
+    tag: 'High Reasoning',
     badgeClass: 'text-purple-400 bg-purple-500/10 border-purple-500/25',
-    description: 'Advanced reasoning, nuanced tags & article synthesis.',
+    description: 'Flagship Flash for complex structuring, nuanced tags & article synthesis.',
   },
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    tag: 'Stable GA',
+    id: 'gemini-4-hydrogen',
+    name: 'Gemini 4 Hydrogen',
+    tag: 'Gemini 4 Frontier',
+    badgeClass: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/25',
+    description: 'Speed and efficiency for everyday coding and agentic workflows (1M context).',
+  },
+  {
+    id: 'gemini-4-argon',
+    name: 'Gemini 4 Argon',
+    tag: 'Efficient Reasoning',
+    badgeClass: 'text-amber-400 bg-amber-500/10 border-amber-500/25',
+    description: 'Frontier reasoning with lower token spend per turn across complex tasks.',
+  },
+  {
+    id: 'gemini-4-carbon',
+    name: 'Gemini 4 Carbon',
+    tag: 'Flagship Reasoning',
+    badgeClass: 'text-rose-400 bg-rose-500/10 border-rose-500/25',
+    description: 'Strongest reasoning model for complex engineering & multimodal knowledge work.',
+  },
+  {
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    tag: 'Stable Multimodal',
     badgeClass: 'text-blue-400 bg-blue-500/10 border-blue-500/25',
-    description: 'General availability production model for general use.',
+    description: 'Balances speed and multimodal capabilities across everyday tasks.',
   },
 ];
 
@@ -115,7 +129,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [aiProvider, setAiProvider] = useState<'gemini' | 'custom'>('gemini');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [model, setModel] = useState('gemini-2.5-flash');
+  const [model, setModel] = useState('gemini-3.5-flash-lite');
   const [showCustomModel, setShowCustomModel] = useState(false);
   const [customModelInput, setCustomModelInput] = useState('');
   const [customApiUrl, setCustomApiUrl] = useState('');
@@ -146,7 +160,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setAiProvider(s.aiProvider || 'gemini');
       setApiKey(s.geminiApiKey || '');
       setBaseUrl(s.geminiBaseUrl || '');
-      const loadedModel = s.geminiModel || 'gemini-2.5-flash';
+      const loadedModel = s.geminiModel || 'gemini-3.5-flash-lite';
       setModel(loadedModel);
       const isKnown = SUPPORTED_MODELS.some((m) => m.id === loadedModel);
       setShowCustomModel(!isKnown);
@@ -496,7 +510,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           setCustomModelInput(e.target.value);
                           setModel(e.target.value.trim());
                         }}
-                        placeholder="e.g. gemini-2.0-flash-thinking-exp"
+                        placeholder="e.g. gemini-4-carbon or gemini-3.8-flash"
                         className="w-full bg-[#181818] border border-white/[0.08] focus:border-cyan-500/50 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs font-mono text-white placeholder-neutral-600 transition-colors"
                       />
                     </div>

@@ -52,7 +52,7 @@ flowchart TD
         O --> W["Assemble Multimodal Payload<br/>Thumbnail Base64 + Article Text + User Intent"]
         N --> W
         W --> X["Google GenAI SDK<br/>Direct Client-to-API BYOK"]
-        X --> Y["Gemini 2.5 Flash / 3.5 Flash Lite<br/>Strict responseSchema + Low Temp 0.2"]
+        X --> Y["Gemini 4 / 3.5 Flash-Lite / 3.8 Flash<br/>Strict responseSchema + Low Temp 0.2"]
         Y --> Z["Runtime Zod Validation<br/>GeminiMetaSchema"]
     end
 
@@ -163,7 +163,7 @@ flowchart LR
     B["Base64 Thumbnail"] -->|"inlineData: image/jpeg"| D
     C["User Intent Tag"] --> D
 
-    D --> E["Gemini 2.5 Flash / 3.5 Flash Lite"]
+    D --> E["Gemini 4 / 3.5 Flash-Lite / 3.8 Flash"]
     
     subgraph Config["SDK Config"]
         F["temperature: 0.2"]

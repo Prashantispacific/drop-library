@@ -61,7 +61,7 @@ export const LibraryItemSchema = z.object({
 export const UserSettingsSchema = z.object({
   aiProvider: z.enum(['gemini', 'custom']).default('gemini'),
   geminiApiKey: z.string().default(''),
-  geminiModel: z.string().default('gemini-2.5-flash'),
+  geminiModel: z.string().default('gemini-3.5-flash-lite'),
   geminiBaseUrl: z.string().default(''),
   customApiUrl: z.string().default(''),
   customApiKey: z.string().default(''),

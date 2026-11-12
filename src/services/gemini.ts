@@ -207,7 +207,7 @@ export async function enrichWithGemini(input: EnrichInput): Promise<LibraryItemM
     const apiKey = settings.geminiApiKey?.trim();
     if (!apiKey) throw new Error('MISSING_GEMINI_KEY');
 
-    const primaryModel = settings.geminiModel || 'gemini-2.5-flash';
+    const primaryModel = settings.geminiModel || 'gemini-3.5-flash-lite';
     const customBaseUrl = settings.geminiBaseUrl?.trim();
     const contents = buildGeminiContents(input);
 
@@ -231,9 +231,9 @@ export async function enrichWithGemini(input: EnrichInput): Promise<LibraryItemM
         }
       }
 
-      // Retry 2: Resilient model fallback (e.g. gemini-2.0-flash)
-      if (!responseText && primaryModel !== 'gemini-2.0-flash') {
-        const fallbackModel = 'gemini-2.0-flash';
+      // Retry 2: Resilient model fallback to gemini-3.5-flash-lite if primary model was different
+      if (!responseText && primaryModel !== 'gemini-3.5-flash-lite') {
+        const fallbackModel = 'gemini-3.5-flash-lite';
         console.info(`[Gemini] Attempting fallback model: ${fallbackModel}...`);
         try {
           responseText = await callGemini(apiKey, fallbackModel, contents, customBaseUrl);
