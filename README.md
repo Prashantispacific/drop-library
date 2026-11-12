@@ -1,192 +1,143 @@
-# Drop & Forget Universal Library
+# Drop Library 📦✨
 
-A personal, zero-friction, offline-first universal knowledge and media vault built for saving content encountered on mobile (**Instagram Reels, YouTube videos, blogs, essays, text quotes, and screenshots**) from a single unified TypeScript codebase.
+<div align="center">
 
-- **Mobile:** Native Android APK via **Capacitor 8** + `@capgo/capacitor-share-target` (v8)
-- **Web:** Desktop & Mobile PWA with Web Share Target API support
-- **Backend Unfurler:** Netlify Serverless Function (`open-graph-scraper` + `@mozilla/readability` + `linkedom`)
-- **AI Structuring:** Official `@google/genai` SDK with strict JSON `responseSchema` + runtime Zod validation
-- **Zero Cost / Zero Infrastructure Overhead:** $0/mo stack with BYOK (Bring Your Own Key) Google AI Studio Gemini free tier
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![React 19](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Capacitor 8](https://img.shields.io/badge/Capacitor-8.0-119EFF?logo=capacitor&logoColor=white)](https://capacitorjs.com/)
+[![Vite 6](https://img.shields.io/badge/Vite-6.0-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Tailwind CSS v4](https://img.shields.io/badge/Tailwind-v4.0-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Google Gemini](https://img.shields.io/badge/Gemini_AI-2.5_Flash-4285F4?logo=google&logoColor=white)](https://aistudio.google.com/)
+[![Infrastructure Cost](https://img.shields.io/badge/Hosting_Cost-$0%2Fmo-10B981)](#-0-infrastructure-economics)
+
+**A personal, zero-friction, offline-first universal knowledge vault for mobile & web.**  
+*Save Instagram Reels, YouTube videos, articles, quotes, and screenshots without manual filing or note-taking.*
+
+[**Live Web PWA**](https://drop-vault-pg.netlify.app) • [**Architecture Deep-Dive**](./ARCHITECTURE.md) • [**Contributing**](./CONTRIBUTING.md)
+
+</div>
 
 ---
 
-## Architecture & Engineering Highlights
+## ⚡ The "Drop & Forget" Philosophy
 
+Most "Read Later" and bookmarking apps suffer from **Folder Fatigue**: the moment you share something interesting, the app forces you to organize it into folders, choose tags, or write notes. Over time, friction increases and the vault becomes a graveyard of unindexed links.
+
+**Drop Library is engineered for zero friction:**
+1. **Sub-2-Second Capture:** Share any link, text note, or image from Instagram, YouTube, or your browser. The app captures it, shows a minimal translucent HUD (`Saved ✓`), and returns you immediately to your source app within ~300ms.
+2. **Zero Video Downloads:** Never waste gigabytes downloading heavy MP4 files. The app stores canonical URLs, high-res preview metadata, and compact AI-structured JSON (~2 KB per drop).
+3. **Multimodal AI Librarian:** Powered by Google's Gemini SDK (`gemini-2.5-flash` / `gemini-3.5-flash-lite`). It performs optical character recognition (OCR) on video thumbnail hook text, writes concise summaries, classifies categories, and generates 5–8 search synonyms.
+4. **Instant 0ms Client-Side Search:** Full fuzzy search across titles, tags, and AI conceptual synonyms via `Fuse.js` running in-memory over `IndexedDB`.
+5. **100% Public-Repo Safe (BYOK):** Zero hardcoded API keys. Bring Your Own Key (free-tier Google AI Studio) stored securely in local IndexedDB.
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+flowchart TD
+    A[Share Sheet / Quick Drop] -->|ACTION_SEND / Web Share| B(Native Share Target Bridge)
+    B --> C{Cold-Start Buffer}
+    C -->|Immediate Write| D[IndexedDB idb-keyval<br/>status: 'pending']
+    D --> E[Saved ✓ Haptic HUD]
+    E -->|Auto-Return ~300ms| F[Back to Instagram / YouTube]
+
+    D -.-> G[Background Queue Worker]
+    G --> H[Netlify Serverless Unfurler<br/>unfurl.ts]
+    H --> I[Crawler Spoofing + Embed Fallback<br/>OpenGraph + Readability]
+    I --> J[Gemini Multimodal AI<br/>Thumbnail OCR + Strict Schema]
+    J --> K[IndexedDB Update<br/>status: 'enriched']
+    K --> L[Fuse.js In-Memory Search Index]
 ```
-                                      Android Share Sheet / Web Share / Quick Drop
-                                                          │
-                                                          ▼
-                                            [Cold-Start Buffer Queue]
-                                           (src/native/coldStartBuffer)
-                                                          │
-                                                          ▼
-                                              Sub-2s Instant Capture
-                                         Persist status: 'pending' to
-                                            IndexedDB (idb-keyval)
-                                                          │
-                                                          ▼
-                                               [Saved ✓ Confirmation HUD]
-                                           (1-tap optional intent chips)
-                                                          │
-                                                          ▼
-                                             [Background Retry Worker]
-                                            (src/services/queueWorker)
-                                                          │
-                           ┌──────────────────────────────┴──────────────────────────────┐
-                           ▼                                                             ▼
-              [Netlify Serverless Unfurler]                                     [Gemini AI Structuring]
-               (netlify/functions/unfurl)                                      (src/services/gemini)
-              - URL parameter stripper (?vrfl, ?igsh)                          - Strict responseSchema
-              - Instagram crawler UA + embed fallback                          - Multimodal thumbnail OCR
-              - YouTube oEmbed + thumbnail extraction                          - Runtime Zod validation
-              - Readability + Linkedom article parser                          - 5-8 search synonyms
-                           │                                                             │
-                           └──────────────────────────────┬──────────────────────────────┘
-                                                          ▼
-                                             IndexedDB status: 'enriched'
-                                                          │
-                                                          ▼
-                                           Instant Client-Side Fuzzy Search
-                                                (Fuse.js across synonyms)
-```
+
+> 📖 **Want the full engineering breakdown?** Read [ARCHITECTURE.md](./ARCHITECTURE.md) for sequence diagrams, Android hardware bug fixes, and scraper waterfall details.
 
 ---
 
-## 1. Research & Official SDK Implementations
+## 🚀 Key Features
 
-### A. Capacitor 8 & `@capgo/capacitor-share-target` (v8)
-- Configured with `android:launchMode="singleTask"` in `android/app/src/main/AndroidManifest.xml` to prevent multiple activity instances when sharing.
-- Handled **Cold-Start Share Buffering**: When the app is launched cold from `ACTION_SEND`, the native `shareReceived` listener is registered in `src/main.tsx` *before* React mounts. Any early intent is safely held in `coldStartBuffer` and delivered as soon as the UI is ready.
-- Android intent filters handle `text/*`, `image/*`, and `image/*` multiples.
-
-### B. Official `@google/genai` SDK (v3.2.0)
-- Configured with strict `responseSchema` using `Type.OBJECT`, `Type.STRING`, `Type.ARRAY`, and `Type.INTEGER`.
-- Low temperature (`0.2`) ensures deterministic, factual metadata generation.
-- **Multimodal Thumbnail OCR:** The unfurler fetches and returns the social cover thumbnail as base64 (`inlineData`). Gemini reads on-screen hook text and burned-in subtitles on Instagram Reels and YouTube thumbnails even when caption text is sparse or missing.
-- Runtime validated via Zod schema (`GeminiMetaSchema`) before updating records in IndexedDB.
-
-### C. Resilient Unfurler Waterfall (`netlify/functions/unfurl.ts`)
-1. **URL Normalizer:** Strips tracking tokens (`?vrfl=`, `?igsh=`, `?utm_*`, `?si=`, `?feature=`, `fbclid`, `gclid`).
-2. **Instagram Waterfall:**
-   - First attempts crawler spoofing (`User-Agent: facebookexternalhit/1.1; WhatsApp/2.24.0`).
-   - If blocked or lacking caption text, falls back to `https://www.instagram.com/reel/{shortcode}/embed/captioned/` and parses caption, author, and poster image via `linkedom`.
-3. **YouTube Direct oEmbed:**
-   - Calls `https://www.youtube.com/oembed?url=...&format=json` for 100% reliable, zero-auth, rate-limit immune metadata.
-   - Extracts canonical thumbnail from `https://img.youtube.com/vi/{videoId}/hqdefault.jpg`.
-4. **General Web Readability:**
-   - Uses `open-graph-scraper` for metadata and `@mozilla/readability` + `linkedom` for clean article text extraction (truncated to 4,000 characters for sub-second processing).
-
-### D. Expiring CDN Thumbnail Graceful Degradation
-- Instagram and Meta CDN URLs expire after several days.
-- `ImageWithFallback.tsx` detects `onError` and immediately displays sleek typography, category badges, and platform branding with zero broken image layout shifts.
-
-### E. Public-Repo Safe (BYOK)
-- No API keys or environment secrets are committed in source code.
-- Users input their own free-tier Google AI Studio API key in the on-device Settings modal.
-- Key is stored exclusively in client-side IndexedDB (`idb-keyval`).
-
----
-
-## 2. Tech Stack
-
-| Layer | Technology |
+| Feature | Description |
 | :--- | :--- |
-| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4 |
-| **Native Bridge** | Capacitor 8 (`core`, `app`, `browser`, `status-bar`, `haptics`, `@capgo/capacitor-share-target`) |
-| **Storage & Search** | `idb-keyval` (IndexedDB), `Fuse.js` (fuzzy search across synonyms, tags, and titles) |
-| **Backend Unfurler** | Netlify Functions, `open-graph-scraper`, `@mozilla/readability`, `linkedom` |
-| **AI Engine** | `@google/genai` (Gemini 2.5 Flash, 3.5 Flash Lite, 3.8 Flash) with strict JSON Schema |
-| **Design** | Ultra-minimalist OLED (`#0A0A0A` default, toggleable `#000000` True Black) |
+| 📱 **Native Android Integration** | System Share Sheet support via `@capgo/capacitor-share-target` v8 with cold-start buffer and `singleTask` launch mode. |
+| 🖤 **OLED Dark Aesthetic** | Pure `#0A0A0A` canvas with toggleable `#000000` True Black mode for AMOLED battery savings. |
+| 📝 **Markdown Viewer & Editor** | View and edit rich `.md` notes directly in the app with GitHub Flavored Markdown (GFM) formatting. |
+| 🖼️ **Multimodal Image Drops** | Share or drop images and infographics directly; Gemini automatically extracts on-screen text and details via OCR. |
+| 🏷️ **1-Tap Quick Intent Chips** | Instantly categorize drops on capture (`#toread`, `#inspo`, `#tool`, `#code`, `#quote`, `#project`). |
+| 🔄 **Offline-First Resilience** | Full local storage with `idb-keyval`. Enqueues drops offline and automatically reconciles when internet restores. |
+| 🔒 **Public-Repo Safe (BYOK)** | Bring Your Own Key model keeps Google AI Studio keys isolated in local device storage. |
 
 ---
 
-## 3. Getting Started
+## 🛠️ Tech Stack
 
-### Prerequisites
-- Node.js 18+ (tested on Node 24)
-- Android Studio / Android SDK (for building the Android APK)
+- **Frontend:** React 19, Vite 6, TypeScript, Tailwind CSS v4
+- **Mobile Bridge:** Capacitor 8 (`@capacitor/core`, `@capacitor/app`, `@capacitor/browser`, `@capacitor/filesystem`, `@capacitor/haptics`, `@capacitor/status-bar`, `@capgo/capacitor-share-target`)
+- **Local Storage & Indexing:** `idb-keyval` (IndexedDB), `Fuse.js` (client-side fuzzy search)
+- **Edge Serverless Unfurler:** Netlify Functions (`open-graph-scraper`, `@mozilla/readability`, `linkedom`)
+- **AI Structuring:** Official `@google/genai` SDK with strict JSON Schema and runtime Zod validation
+- **Markdown Engine:** `marked` v18.2
 
-### Installation
+---
+
+## 🏁 Getting Started
+
+### 1. Web PWA Setup
+
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/drop-library.git
+git clone https://github.com/Prashantispacific/drop-library.git
 cd drop-library
 
 # Install dependencies
 npm install
-```
 
-### Local Development (Web PWA)
-```bash
+# Start development server
 npm run dev
 ```
 
-### Building Web PWA & Syncing Native Capacitor
+Visit `http://localhost:5173` in your browser.
+
+### 2. Android APK Build & Install
+
 ```bash
-# 1. Build production web bundle
+# 1. Build web distribution
 npm run build
 
-# 2. Sync web bundle to Android platform
-npx cap sync
-```
+# 2. Sync native Android assets
+npx cap sync android
 
-### Building the Android APK
-```bash
+# 3. Assemble Debug APK
 cd android
-.\gradlew.bat assembleDebug
-```
-The output APK is generated at:
-`android/app/build/outputs/apk/debug/app-debug.apk`
+./gradlew assembleDebug
+cd ..
 
----
-
-## 4. Deploying to Netlify
-
-1. Push your repository to GitHub.
-2. In Netlify, import the repository with:
-   - **Build command:** `npm run build`
-   - **Publish directory:** `dist`
-   - **Functions directory:** `netlify/functions`
-3. Netlify automatically deploys `netlify/functions/unfurl.ts` as a serverless endpoint.
-4. Set `VITE_UNFURL_ENDPOINT` in your environment or enter your deployed URL into the Settings modal in the app.
-
----
-
-## 5. Data Schema
-
-Stored in IndexedDB under `drop_library_items_v1`:
-
-```typescript
-export interface LibraryItem {
-  id: string;                     // crypto.randomUUID()
-  schemaVersion: 1;
-  createdAt: number;
-  updatedAt: number;
-  status: 'pending' | 'unfurling' | 'enriched' | 'failed';
-  retryCount: number;
-  errorMessage?: string;
-
-  // 1. Raw Capture (Saved immediately offline)
-  url?: string;                   // Canonical URL stripped of tracking params
-  platform: 'instagram' | 'youtube' | 'web' | 'text' | 'image';
-  rawShareText?: string;          // Raw text/title from Android Share Sheet
-  quickNote?: string;             // Optional 1-tap tag/note added on capture
-  thumbnailUrl?: string;          // Extracted og:image URL
-
-  // 2. AI-Structured Metadata (Validated JSON from Gemini)
-  meta?: {
-    title: string;
-    tldr: string;
-    category: 'reel' | 'article' | 'essay' | 'tool' | 'quote' | 'inspo';
-    tags: string[];               // 3–5 normalized lowercase tags
-    searchSynonyms: string[];     // Related concepts so vague queries match
-    authorOrHandle?: string;
-    estimatedReadMinutes?: number;
-  };
-}
+# 4. Install onto connected Android device
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ---
 
-## 6. License
-MIT
+## 🔑 Bring Your Own Key (BYOK) Setup
+
+1. Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+2. Open Drop Library on your phone or web browser.
+3. Tap the **Settings (gear icon)** at the top right.
+4. Paste your key into the **Google AI Studio Key** field and tap **Save Changes**.
+5. Your key is saved strictly in your device's private IndexedDB and never transmitted to any third-party server.
+
+---
+
+## 💰 $0 Infrastructure Economics
+
+Drop Library costs **$0.00/month** to run indefinitely:
+- **Netlify Functions:** Free tier includes 125,000 monthly invocations and 100 GB bandwidth.
+- **Google AI Studio:** Free tier includes 15 requests/minute for Gemini 2.5 Flash.
+- **Client Storage:** Uses your device's local IndexedDB with zero cloud database fees.
+
+---
+
+## 📄 License & Contributing
+
+- Code licensed under the [MIT License](./LICENSE).
+- Interested in contributing? Check out [CONTRIBUTING.md](./CONTRIBUTING.md).
+- Questions about security? Review our [SECURITY.md](./SECURITY.md).
