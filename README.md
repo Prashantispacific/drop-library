@@ -43,18 +43,18 @@ Most "Read Later" and bookmarking apps suffer from **Folder Fatigue**: the momen
 
 ```mermaid
 flowchart TD
-    A[Android Share Sheet / ACTION_SEND] -->|@capgo/capacitor-share-target| B(Native Share Target Bridge)
-    B --> C{Cold-Start Buffer}
-    C -->|Immediate Write| D[IndexedDB idb-keyval<br/>status: 'pending']
-    D --> E[Saved ✓ Haptic HUD]
-    E -->|Auto-Return ~300ms| F[Back to Instagram / YouTube]
+    A["Android Share Sheet / ACTION_SEND"] -->|"Capacitor Share Target v8"| B["Native Share Target Bridge"]
+    B --> C{"Cold-Start Buffer"}
+    C -->|"Immediate Write"| D["IndexedDB idb-keyval<br/>status: 'pending'"]
+    D --> E["Saved ✓ Haptic HUD"]
+    E -->|"Auto-Return ~300ms"| F["Back to Instagram / YouTube"]
 
-    D -.-> G[Background Queue Worker]
-    G --> H[Netlify Serverless Unfurler<br/>unfurl.ts]
-    H --> I[Crawler Spoofing + Embed Fallback<br/>OpenGraph + Readability]
-    I --> J[Gemini Multimodal AI<br/>Thumbnail OCR + Strict Schema]
-    J --> K[IndexedDB Update<br/>status: 'enriched']
-    K --> L[Fuse.js In-Memory Search Index]
+    D -.-> G["Background Queue Worker"]
+    G --> H["Netlify Serverless Unfurler<br/>unfurl.ts"]
+    H --> I["Crawler Spoofing + Embed Fallback<br/>OpenGraph + Readability"]
+    I --> J["Gemini Multimodal AI<br/>Thumbnail OCR + Strict Schema"]
+    J --> K["IndexedDB Update<br/>status: 'enriched'"]
+    K --> L["Fuse.js In-Memory Search Index"]
 ```
 
 > 📖 **Want the full engineering breakdown?** Read [ARCHITECTURE.md](./ARCHITECTURE.md) for sequence diagrams, Android hardware bug fixes, and scraper waterfall details.

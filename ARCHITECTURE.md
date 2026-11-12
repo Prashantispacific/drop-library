@@ -13,35 +13,35 @@ Drop Library is engineered around a unified TypeScript architecture powering a n
 ```mermaid
 flowchart TD
     subgraph Client["1. Android Native Client"]
-        A[User shares link / text / image<br/>from Instagram, YouTube, Chrome] -->|ACTION_SEND Intent| B(Native Share Target Bridge<br/>@capgo/capacitor-share-target v8)
-        B --> C{Cold-Start Buffer<br/>React mounted?}
-        C -->|No| D[Buffer Intent in Memory]
-        C -->|Yes| E[Dispatch to React App.tsx]
-        D -->|React ready| E
+        A["User shares link / text / image<br/>from Instagram, YouTube, Chrome"] -->|"ACTION_SEND Intent"| B["Native Share Target Bridge<br/>Capacitor Share Target v8"]
+        B --> C{"Cold-Start Buffer<br/>React mounted?"}
+        C -->|"No"| D["Buffer Intent in Memory"]
+        C -->|"Yes"| E["Dispatch to React App.tsx"]
+        D -->|"React ready"| E
         
-        E --> F[Immediate IndexedDB Write<br/>status: 'pending']
-        F --> G[Saved ✓ Haptic HUD]
-        G --> H{Auto-Return?}
-        H -->|Delay 0s| I[Minimize App / Return to Source App<br/>~300ms total]
-        H -->|Delay >0s| J[Show HUD, then auto-minimize]
+        E --> F["Immediate IndexedDB Write<br/>status: 'pending'"]
+        F --> G["Saved ✓ Haptic HUD"]
+        G --> H{"Auto-Return?"}
+        H -->|"Delay 0s"| I["Minimize App / Return to Source App<br/>~300ms total"]
+        H -->|"Delay >0s"| J["Show HUD, then auto-minimize"]
     end
 
     subgraph SyncEngine["2. Background Queue Worker (Client)"]
-        F -.-> K[Queue Worker Awake<br/>Window 'online' / periodic]
-        K --> L{Payload has URL?}
-        L -->|Yes| M[HTTP POST /.netlify/functions/unfurl]
-        L -->|No - Text/Image| N[Convert image to Base64 Data URL]
-        M --> O[Receive OpenGraph + Readability Data]
+        F -.-> K["Queue Worker Awake<br/>Window 'online' / periodic"]
+        K --> L{"Payload has URL?"}
+        L -->|"Yes"| M["HTTP POST /.netlify/functions/unfurl"]
+        L -->|"No - Text/Image"| N["Convert image to Base64 Data URL"]
+        M --> O["Receive OpenGraph + Readability Data"]
     end
 
     subgraph Backend["3. Netlify Edge Serverless Unfurler"]
-        M --> P[URL Normalizer<br/>Strip tracking params ?igsh, ?vrfl]
-        P --> Q{Platform?}
-        Q -->|Instagram| R[Crawler Spoofing<br/>facebookexternalhit/1.1]
-        R -->|Blocked/Login wall| S[Instagram /embed/captioned/ Fallback]
-        Q -->|YouTube| T[oEmbed API + HQ Thumbnail]
-        Q -->|Web / News| U[open-graph-scraper + @mozilla/readability]
-        R --> V[Assemble Preview JSON + Cover Thumbnail]
+        M --> P["URL Normalizer<br/>Strip tracking params ?igsh, ?vrfl"]
+        P --> Q{"Platform?"}
+        Q -->|"Instagram"| R["Crawler Spoofing<br/>facebookexternalhit/1.1"]
+        R -->|"Blocked/Login wall"| S["Instagram /embed/captioned/ Fallback"]
+        Q -->|"YouTube"| T["oEmbed API + HQ Thumbnail"]
+        Q -->|"Web / News"| U["open-graph-scraper + Mozilla Readability"]
+        R --> V["Assemble Preview JSON + Cover Thumbnail"]
         S --> V
         T --> V
         U --> V
@@ -49,17 +49,17 @@ flowchart TD
     end
 
     subgraph AI["4. Gemini Multimodal Structuring"]
-        O --> W[Assemble Multimodal Payload<br/>Thumbnail Base64 + Article Text + User Intent]
+        O --> W["Assemble Multimodal Payload<br/>Thumbnail Base64 + Article Text + User Intent"]
         N --> W
-        W --> X[Google GenAI SDK<br/>Direct Client-to-API BYOK]
-        X --> Y[Gemini 2.5 Flash / 3.5 Flash Lite<br/>Strict responseSchema + Low Temp 0.2]
-        Y --> Z[Runtime Zod Validation<br/>GeminiMetaSchema]
+        W --> X["Google GenAI SDK<br/>Direct Client-to-API BYOK"]
+        X --> Y["Gemini 2.5 Flash / 3.5 Flash Lite<br/>Strict responseSchema + Low Temp 0.2"]
+        Y --> Z["Runtime Zod Validation<br/>GeminiMetaSchema"]
     end
 
     subgraph Storage["5. Persistent Vault & Fuzzy Search"]
-        Z --> AA[Update IndexedDB<br/>status: 'enriched']
-        AA --> AB[Fuse.js In-Memory Reindex<br/>Title x3, Tags x2, Synonyms x1.5]
-        AB --> AC[Instant Searchable Memory<br/>0ms client latency]
+        Z --> AA["Update IndexedDB<br/>status: 'enriched'"]
+        AA --> AB["Fuse.js In-Memory Reindex<br/>Title x3, Tags x2, Synonyms x1.5"]
+        AB --> AC["Instant Searchable Memory<br/>0ms client latency"]
     end
 
     classDef client fill:#141414,stroke:#06B6D4,stroke-width:1.5px,color:#fff;
@@ -85,12 +85,12 @@ When an app is cold-started on Android via `ACTION_SEND`, native Capacitor event
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as User (in Instagram)
-    participant OS as Android System
-    participant Native as Capacitor Activity (singleTask)
-    participant Buffer as coldStartBuffer (native/bridge.ts)
-    participant React as React (App.tsx)
-    participant IDB as IndexedDB (idb-keyval)
+    actor User as "User (in Instagram)"
+    participant OS as "Android System"
+    participant Native as "Capacitor Activity (singleTask)"
+    participant Buffer as "coldStartBuffer (native/bridge.ts)"
+    participant React as "React (App.tsx)"
+    participant IDB as "IndexedDB (idb-keyval)"
 
     User->>OS: Tap Share -> Drop Library
     OS->>Native: Launch MainActivity with ACTION_SEND Intent
@@ -121,27 +121,27 @@ Social media platforms (especially Instagram/Meta) actively resist link scrapers
 
 ```mermaid
 flowchart TD
-    Start[Incoming Share URL] --> Strip[Strip Query Params<br/>?igsh=, ?vrfl=, ?utm_*, &si=]
-    Strip --> Check{Platform Hostname?}
+    Start["Incoming Share URL"] --> Strip["Strip Query Params<br/>?igsh=, ?vrfl=, ?utm_*, &si="]
+    Strip --> Check{"Platform Hostname?"}
 
-    Check -->|Instagram| InstaStep1[Fetch with Facebook Crawler UA<br/>User-Agent: facebookexternalhit/1.1]
-    InstaStep1 --> InstaCheck{Login wall / 401?}
-    InstaCheck -->|No| InstaOG[Extract og:title, og:image, og:description]
-    InstaCheck -->|Yes| InstaFallback[Fetch Public Embed Endpoint<br/>/reel/{code}/embed/captioned/]
-    InstaFallback --> InstaParse[Parse caption & poster with linkedom]
+    Check -->|"Instagram"| InstaStep1["Fetch with Facebook Crawler UA<br/>facebookexternalhit/1.1"]
+    InstaStep1 --> InstaCheck{"Login wall / 401?"}
+    InstaCheck -->|"No"| InstaOG["Extract og:title, og:image, og:description"]
+    InstaCheck -->|"Yes"| InstaFallback["Fetch Public Embed Endpoint<br/>/reel/code/embed/captioned/"]
+    InstaFallback --> InstaParse["Parse caption & poster with linkedom"]
 
-    Check -->|YouTube| YTOEmbed[Fetch YouTube oEmbed API<br/>format=json]
-    YTOEmbed --> YTOg[Fetch img.youtube.com/vi/{id}/hqdefault.jpg]
+    Check -->|"YouTube"| YTOEmbed["Fetch YouTube oEmbed API<br/>format=json"]
+    YTOEmbed --> YTOg["Fetch YouTube High-Res Thumbnail"]
 
-    Check -->|Generic Web / Blog| WebOG[Extract OpenGraph via open-graph-scraper]
-    WebOG --> Readability[Parse cleaned article text<br/>via @mozilla/readability + linkedom]
+    Check -->|"Generic Web / Blog"| WebOG["Extract OpenGraph via open-graph-scraper"]
+    WebOG --> Readability["Parse cleaned article text<br/>via Mozilla Readability + linkedom"]
 
-    InstaOG --> Assemble[Assemble UnfurlResult]
+    InstaOG --> Assemble["Assemble UnfurlResult"]
     InstaParse --> Assemble
     YTOg --> Assemble
     Readability --> Assemble
-    Assemble --> Base64Thumb[Fetch cover image & convert to Base64]
-    Base64Thumb --> Return[Return JSON Payload to Client]
+    Assemble --> Base64Thumb["Fetch cover image & convert to Base64"]
+    Base64Thumb --> Return["Return JSON Payload to Client"]
 ```
 
 ### Unfurler Specifications:
@@ -159,22 +159,22 @@ Drop Library solves this by using **Multimodal Vision** in `@google/genai`:
 
 ```mermaid
 flowchart LR
-    A[Raw URL / Note] --> D[buildGeminiContents]
-    B[Base64 Thumbnail] -->|inlineData: image/jpeg| D
-    C[User Intent Tag] --> D
+    A["Raw URL / Note"] --> D["buildGeminiContents"]
+    B["Base64 Thumbnail"] -->|"inlineData: image/jpeg"| D
+    C["User Intent Tag"] --> D
 
-    D --> E[Gemini 2.5 Flash / 3.5 Flash Lite]
+    D --> E["Gemini 2.5 Flash / 3.5 Flash Lite"]
     
     subgraph Config["SDK Config"]
-        F[temperature: 0.2]
-        G[responseMimeType: application/json]
-        H[responseSchema: Type.OBJECT]
+        F["temperature: 0.2"]
+        G["responseMimeType: application/json"]
+        H["responseSchema: Type.OBJECT"]
     end
 
     Config --> E
-    E --> I[Structured JSON Output]
-    I --> J[Runtime Zod Validation<br/>GeminiMetaSchema]
-    J --> K[LibraryItem.meta]
+    E --> I["Structured JSON Output"]
+    I --> J["Runtime Zod Validation<br/>GeminiMetaSchema"]
+    J --> K["LibraryItem.meta"]
 ```
 
 ### JSON Schema & Zod Definition:
