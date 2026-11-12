@@ -19,6 +19,8 @@ import {
   Check,
   RefreshCw,
   CornerUpLeft,
+  Sliders,
+  Plus,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -27,10 +29,43 @@ interface SettingsModalProps {
   items: LibraryItem[];
 }
 
-const SUPPORTED_MODELS = [
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Recommended - Fast & Free)' },
-  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite (Ultra-low latency)' },
-  { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash (Deep reasoning)' },
+interface ModelOption {
+  id: string;
+  name: string;
+  tag: string;
+  badgeClass: string;
+  description: string;
+}
+
+const SUPPORTED_MODELS: ModelOption[] = [
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    tag: 'Recommended',
+    badgeClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
+    description: 'Fast multimodal OCR, instant structuring & free-tier friendly.',
+  },
+  {
+    id: 'gemini-3.5-flash-lite',
+    name: 'Gemini 3.5 Flash Lite',
+    tag: 'Lowest Latency',
+    badgeClass: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/25',
+    description: 'Ultra-low latency for instant background classification.',
+  },
+  {
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    tag: 'Deep Reasoning',
+    badgeClass: 'text-purple-400 bg-purple-500/10 border-purple-500/25',
+    description: 'Advanced reasoning, nuanced tags & article synthesis.',
+  },
+  {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    tag: 'Stable GA',
+    badgeClass: 'text-blue-400 bg-blue-500/10 border-blue-500/25',
+    description: 'General availability production model for general use.',
+  },
 ];
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -41,6 +76,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('gemini-2.5-flash');
+  const [showCustomModel, setShowCustomModel] = useState(false);
+  const [customModelInput, setCustomModelInput] = useState('');
   const [unfurlEndpoint, setUnfurlEndpoint] = useState('');
   const [themeMode, setThemeMode] = useState<'oled' | 'true-black'>('oled');
   const [autoEnrich, setAutoEnrich] = useState(true);
@@ -64,7 +101,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     storage.getSettings().then((s) => {
       setSettings(s);
       setApiKey(s.geminiApiKey || '');
-      setModel(s.geminiModel || 'gemini-2.5-flash');
+      const loadedModel = s.geminiModel || 'gemini-2.5-flash';
+      setModel(loadedModel);
+      const isKnown = SUPPORTED_MODELS.some((m) => m.id === loadedModel);
+      setShowCustomModel(!isKnown);
+      if (!isKnown) {
+        setCustomModelInput(loadedModel);
+      }
       setUnfurlEndpoint(s.unfurlEndpoint || '');
       setThemeMode(s.themeMode || 'oled');
       setAutoEnrich(s.autoEnrich ?? true);
@@ -209,23 +252,115 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </p>
           </div>
 
-          {/* Model Selection */}
+          {/* Model Selection - Native OLED Card Selector (No OS Select Dialog) */}
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-neutral-300 flex items-center space-x-1.5">
-              <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Gemini Model</span>
-            </label>
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="w-full bg-[#181818] border border-white/[0.08] focus:border-white/20 focus:outline-none rounded-xl px-3 py-2 text-xs text-[#E2E2E2] transition-colors"
-            >
-              {SUPPORTED_MODELS.map((m) => (
-                <option key={m.id} value={m.id} className="bg-[#181818] text-white">
-                  {m.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-neutral-300 flex items-center space-x-1.5">
+                <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Gemini Model</span>
+              </label>
+              <span className="text-[10px] text-cyan-400/80 font-mono">
+                {model}
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              {SUPPORTED_MODELS.map((m) => {
+                const isSelected = !showCustomModel && model === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setModel(m.id);
+                      setShowCustomModel(false);
+                      triggerHaptic('light');
+                    }}
+                    className={`w-full text-left p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                      isSelected
+                        ? 'bg-cyan-500/[0.08] border-cyan-500/40 text-white shadow-[0_0_15px_rgba(6,182,212,0.1)] ring-1 ring-cyan-500/20'
+                        : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-neutral-300'
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2">
+                        <span className={`text-xs font-semibold ${isSelected ? 'text-cyan-300' : 'text-neutral-200'}`}>
+                          {m.name}
+                        </span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded border font-mono tracking-tight ${m.badgeClass}`}>
+                          {m.tag}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">
+                        {m.description}
+                      </p>
+                    </div>
+                    <div className="shrink-0 flex items-center justify-center">
+                      {isSelected ? (
+                        <div className="w-4 h-4 rounded-full bg-cyan-400 text-black flex items-center justify-center shadow-[0_0_8px_rgba(6,182,212,0.6)]">
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        </div>
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border border-neutral-700 bg-neutral-900/40" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+
+              {/* Custom Model Option */}
+              <div className="pt-0.5">
+                {!showCustomModel ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCustomModel(true);
+                      if (customModelInput.trim()) {
+                        setModel(customModelInput.trim());
+                      }
+                      triggerHaptic('light');
+                    }}
+                    className="text-[11px] text-neutral-400 hover:text-cyan-400 flex items-center space-x-1 transition-colors px-1 py-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Use custom model ID (experimental / 1.5 Pro)</span>
+                  </button>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-white/[0.02] border border-cyan-500/40 ring-1 ring-cyan-500/20 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-cyan-300 flex items-center space-x-1.5">
+                        <Sliders className="w-3.5 h-3.5" />
+                        <span>Custom Model ID</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCustomModel(false);
+                          setModel(SUPPORTED_MODELS[0].id);
+                          triggerHaptic('light');
+                        }}
+                        className="text-[10px] text-neutral-400 hover:text-white"
+                      >
+                        Reset to preset
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={customModelInput}
+                      onChange={(e) => {
+                        setCustomModelInput(e.target.value);
+                        setModel(e.target.value.trim());
+                      }}
+                      placeholder="e.g. gemini-2.0-flash-thinking-exp"
+                      className="w-full bg-[#181818] border border-white/[0.08] focus:border-cyan-500/50 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs font-mono text-white placeholder-neutral-600 transition-colors"
+                    />
+                    <p className="text-[10px] text-neutral-500">
+                      Must be a valid Gemini model ID supported by Google AI Studio for your API key.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Unfurl Server Endpoint */}
