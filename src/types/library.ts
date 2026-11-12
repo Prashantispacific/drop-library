@@ -41,6 +41,8 @@ export interface UserSettings {
   themeMode: 'oled' | 'true-black';
   autoEnrich: boolean;
   hapticFeedback: boolean;
+  autoReturnAfterShare: boolean;
+  returnDelaySeconds: number; // 0 = instant, 1 = 1s HUD, 2 = 2s HUD
 }
 
 export interface UnfurlResult {

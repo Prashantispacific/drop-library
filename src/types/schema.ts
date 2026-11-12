@@ -63,6 +63,8 @@ export const UserSettingsSchema = z.object({
   themeMode: z.enum(['oled', 'true-black']).default('oled'),
   autoEnrich: z.boolean().default(true),
   hapticFeedback: z.boolean().default(true),
+  autoReturnAfterShare: z.boolean().default(true),
+  returnDelaySeconds: z.number().min(0).max(5).default(0),
 });
 
 export type GeminiMetaValidated = z.infer<typeof GeminiMetaSchema>;

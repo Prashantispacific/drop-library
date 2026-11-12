@@ -12,6 +12,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   themeMode: 'oled',
   autoEnrich: true,
   hapticFeedback: true,
+  autoReturnAfterShare: true,
+  returnDelaySeconds: 0,
 };
 
 type StorageChangeListener = (items: LibraryItem[]) => void;

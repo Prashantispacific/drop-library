@@ -4,7 +4,7 @@ import { storage } from './services/storage';
 import { queueWorker } from './services/queueWorker';
 import { SearchEngine } from './services/search';
 import { coldStartBuffer, type IncomingSharePayload } from './native/coldStartBuffer';
-import { setupStatusBar, triggerHaptic } from './native/bridge';
+import { setupStatusBar, triggerHaptic, returnToPreviousApp } from './native/bridge';
 
 import { QuickDropBar } from './components/QuickDropBar';
 import { FilterBar } from './components/FilterBar';
@@ -33,6 +33,7 @@ export default function App() {
 
   const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
   const [overlayItem, setOverlayItem] = useState<LibraryItem | null>(null);
+  const [isFromShareSheet, setIsFromShareSheet] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWorkerActive, setIsWorkerActive] = useState(false);
 
@@ -86,11 +87,28 @@ export default function App() {
         platform,
       });
 
-      // Display Sub-2-Second Confirmation HUD
+      const currentSettings = await storage.getSettings();
+      const autoReturn = currentSettings.autoReturnAfterShare ?? true;
+      const delaySec = currentSettings.returnDelaySeconds ?? 0;
+
+      // If user configured instant return (0s delay), minimize immediately
+      if (autoReturn && delaySec === 0) {
+        console.log('[App] Zero delay return: returning immediately to source app');
+        returnToPreviousApp('Saved to Drop Library ✓');
+        return;
+      }
+
+      setIsFromShareSheet(true);
+      // Display minimal confirmation HUD
       setOverlayItem(item);
     } catch (err) {
       console.error('[App] Failed to enqueue incoming share:', err);
     }
+  }, []);
+
+  const handleDismissOverlay = useCallback(() => {
+    setOverlayItem(null);
+    setIsFromShareSheet(false);
   }, []);
 
   // Subscribe to storage & native share target
@@ -211,6 +229,7 @@ export default function App() {
         {/* Quick Drop Bar */}
         <QuickDropBar
           onItemDropped={(item) => {
+            setIsFromShareSheet(false);
             setOverlayItem(item);
           }}
         />
@@ -259,7 +278,10 @@ export default function App() {
       {/* Instant Sub-2-Second Capture HUD Overlay */}
       <SavedOverlay
         item={overlayItem}
-        onDismiss={() => setOverlayItem(null)}
+        onDismiss={handleDismissOverlay}
+        isFromShareSheet={isFromShareSheet}
+        autoReturn={settings?.autoReturnAfterShare ?? true}
+        returnDelaySeconds={settings?.returnDelaySeconds ?? 0}
       />
 
       {/* Item Reader / Detail Drawer Modal */}

@@ -3,6 +3,7 @@ import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+import { Toast } from '@capacitor/toast';
 
 export const isNative = Capacitor.isNativePlatform();
 
@@ -86,6 +87,43 @@ export async function openExternalUrl(url: string) {
 
   // Web fallback
   window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+/**
+ * Show a native Android system toast overlay.
+ */
+export async function showToast(text: string) {
+  if (isNative) {
+    try {
+      await Toast.show({
+        text,
+        duration: 'short',
+        position: 'bottom',
+      });
+      return;
+    } catch (err) {
+      console.warn('[NativeBridge] Toast error:', err);
+    }
+  }
+}
+
+/**
+ * Minimizes Drop Library and returns user instantly to the calling app (Instagram, YouTube, etc.)
+ * Drop Library continues running in the background to unfurl and enrich with Gemini.
+ */
+export async function returnToPreviousApp(toastMessage?: string) {
+  if (isNative) {
+    try {
+      if (toastMessage) {
+        // Fire toast non-blocking so minimizeApp executes without delay
+        showToast(toastMessage).catch((e) => console.warn('[NativeBridge] Toast error:', e));
+      }
+      console.log('[NativeBridge] Minimizing app to return to caller...');
+      await App.minimizeApp();
+    } catch (err) {
+      console.warn('[NativeBridge] minimizeApp error:', err);
+    }
+  }
 }
 
 type BackButtonHandler = () => boolean; // returns true if consumed

@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Check,
   RefreshCw,
+  CornerUpLeft,
 } from 'lucide-react';
 
 interface SettingsModalProps {
@@ -43,6 +44,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [themeMode, setThemeMode] = useState<'oled' | 'true-black'>('oled');
   const [autoEnrich, setAutoEnrich] = useState(true);
   const [hapticFeedback, setHapticFeedback] = useState(true);
+  const [autoReturnAfterShare, setAutoReturnAfterShare] = useState(true);
+  const [returnDelaySeconds, setReturnDelaySeconds] = useState(1);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isProcessingQueue, setIsProcessingQueue] = useState(false);
 
@@ -58,6 +61,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setThemeMode(s.themeMode || 'oled');
       setAutoEnrich(s.autoEnrich ?? true);
       setHapticFeedback(s.hapticFeedback ?? true);
+      setAutoReturnAfterShare(s.autoReturnAfterShare ?? true);
+      setReturnDelaySeconds(s.returnDelaySeconds ?? 1);
     });
 
     const unregister = registerBackButtonHandler(() => {
@@ -80,6 +85,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       themeMode,
       autoEnrich,
       hapticFeedback,
+      autoReturnAfterShare,
+      returnDelaySeconds,
     });
 
     setupStatusBar(themeMode === 'true-black');
@@ -283,6 +290,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }`}
                 />
               </button>
+            </div>
+
+            {/* Auto Return After Share */}
+            <div className="space-y-2 p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <CornerUpLeft className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <span className="text-xs text-neutral-200 block font-medium">Auto-Return After Share</span>
+                    <span className="text-[10px] text-neutral-500">Return to Instagram/YouTube immediately</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAutoReturnAfterShare(!autoReturnAfterShare)}
+                  className={`w-11 h-6 rounded-full transition-colors p-0.5 ${
+                    autoReturnAfterShare ? 'bg-white' : 'bg-neutral-800'
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full bg-[#121212] transition-transform ${
+                      autoReturnAfterShare ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {autoReturnAfterShare && (
+                <div className="pt-2 border-t border-white/[0.04] flex items-center justify-between text-xs">
+                  <span className="text-[11px] text-neutral-400">Return Delay:</span>
+                  <div className="flex items-center space-x-1">
+                    {[
+                      { delay: 0, label: 'Instant (0s)' },
+                      { delay: 1, label: 'Quick (1s)' },
+                      { delay: 2, label: 'Relaxed (2s)' },
+                    ].map(({ delay, label }) => (
+                      <button
+                        key={delay}
+                        type="button"
+                        onClick={() => setReturnDelaySeconds(delay)}
+                        className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
+                          returnDelaySeconds === delay
+                            ? 'bg-white text-black font-semibold'
+                            : 'bg-white/[0.04] text-neutral-400 hover:text-white'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Haptics */}
