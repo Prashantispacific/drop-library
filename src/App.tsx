@@ -335,20 +335,19 @@ export default function App() {
         )}
       </main>
 
-      {/* Clean Production Footer */}
+      {/* Subtle Production Footer */}
       <footer
-        className="mt-auto w-full border-t border-white/[0.06] px-4 pt-4"
+        className="mt-auto w-full px-4 pt-6"
         style={{
-          paddingBottom: 'calc(max(env(safe-area-inset-bottom, 0px), 0px) + 1.25rem)',
+          paddingBottom: 'calc(max(env(safe-area-inset-bottom, 0px), 0px) + 1.5rem)',
         }}
       >
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-neutral-500">
-          <span className="text-neutral-400 font-medium">Made by Prashant</span>
-          <div className="flex items-center space-x-3">
+        <div className="max-w-4xl mx-auto flex flex-col items-center justify-center gap-1.5 text-center">
+          <div className="flex items-center space-x-3 text-[11px] text-neutral-500/80">
             <button
               type="button"
               onClick={() => setLegalModalTab('privacy')}
-              className="hover:text-neutral-200 transition-colors py-1"
+              className="hover:text-neutral-300 transition-colors"
             >
               Privacy
             </button>
@@ -356,7 +355,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setLegalModalTab('terms')}
-              className="hover:text-neutral-200 transition-colors py-1"
+              className="hover:text-neutral-300 transition-colors"
             >
               Terms
             </button>
@@ -364,11 +363,14 @@ export default function App() {
             <button
               type="button"
               onClick={() => openExternalUrl('https://github.com/Prashantispacific/drop-library')}
-              className="hover:text-neutral-200 transition-colors py-1"
+              className="hover:text-neutral-300 transition-colors"
             >
               Open Source
             </button>
           </div>
+          <span className="text-[10px] tracking-wide text-neutral-600/80">
+            Made by Prashant
+          </span>
         </div>
       </footer>
 
