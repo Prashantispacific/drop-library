@@ -50,11 +50,39 @@ interface ModelOption {
 
 const SUPPORTED_MODELS: ModelOption[] = [
   {
+    id: 'gemma-3-27b-it',
+    name: 'Gemma 3 27B (Default)',
+    tag: 'High Rate Limit',
+    badgeClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
+    description: 'Generous free-tier RPM/RPD limits, multimodal & 128K context via Google AI.',
+  },
+  {
+    id: 'gemma-4-26b-a4b-it',
+    name: 'Gemma 4 26B A4B',
+    tag: 'Gemma 4 MoE',
+    badgeClass: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/25',
+    description: 'Fast MoE reasoning with thinking processes and high intelligence-per-token.',
+  },
+  {
+    id: 'gemma-4-31b-it',
+    name: 'Gemma 4 31B',
+    tag: 'Gemma 4 Dense',
+    badgeClass: 'text-teal-400 bg-teal-500/10 border-teal-500/25',
+    description: 'Flagship open-weight Gemma 4 model for complex knowledge extraction.',
+  },
+  {
+    id: 'gemma-3-12b-it',
+    name: 'Gemma 3 12B',
+    tag: 'Lightweight',
+    badgeClass: 'text-lime-400 bg-lime-500/10 border-lime-500/25',
+    description: 'Compact multimodal Gemma 3 model for quick, high-throughput tagging.',
+  },
+  {
     id: 'gemini-3.5-flash-lite',
     name: 'Gemini 3.5 Flash-Lite',
-    tag: 'Recommended / Fast',
-    badgeClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
-    description: 'Fastest, most cost-effective model for high-throughput structuring.',
+    tag: 'Fast Native JSON',
+    badgeClass: 'text-sky-400 bg-sky-500/10 border-sky-500/25',
+    description: 'Fastest Gemini model with native structured JSON schema support.',
   },
   {
     id: 'gemini-3.8-flash',
@@ -152,7 +180,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [aiProvider, setAiProvider] = useState<'gemini' | 'custom'>('gemini');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
-  const [model, setModel] = useState('gemini-3.5-flash-lite');
+  const [model, setModel] = useState('gemma-3-27b-it');
   const [customApiUrl, setCustomApiUrl] = useState('');
   const [customApiKey, setCustomApiKey] = useState('');
   const [customModel, setCustomModel] = useState('');
@@ -244,7 +272,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setAiProvider(s.aiProvider || 'gemini');
       setApiKey(s.geminiApiKey || '');
       setBaseUrl(s.geminiBaseUrl || '');
-      const loadedModel = s.geminiModel || 'gemini-3.5-flash-lite';
+      const loadedModel = s.geminiModel || 'gemma-3-27b-it';
       setModel(loadedModel);
       setCustomApiUrl(s.customApiUrl || '');
       setCustomApiKey(s.customApiKey || '');
@@ -531,6 +559,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
                 placeholder="Paste your AI Studio API key (AIza...)"
                 className="w-full bg-black/40 border border-white/[0.08] focus:border-cyan-500/40 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
               />
@@ -554,6 +586,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="url"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
                 placeholder="e.g. https://gateway.ai.cloudflare.com/... or https://my-proxy.com"
                 className="w-full bg-black/40 border border-white/[0.08] focus:border-amber-400/40 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-[#E2E2E2] placeholder-neutral-600 transition-colors"
               />

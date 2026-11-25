@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { marked } from 'marked';
-import { Edit3, Eye, Check, X, Copy } from 'lucide-react';
+import { Edit3, Check, X, Copy } from 'lucide-react';
 import { triggerHaptic } from '../native/bridge';
 
 interface MarkdownViewerProps {

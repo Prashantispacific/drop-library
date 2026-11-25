@@ -13,6 +13,14 @@ export interface LibraryItemMeta {
   estimatedReadMinutes?: number;
 }
 
+export interface FileMeta {
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  pageCount?: number;
+  wordCount?: number;
+}
+
 export interface LibraryItem {
   id: string;                     // crypto.randomUUID()
   schemaVersion: 1;
@@ -28,10 +36,11 @@ export interface LibraryItem {
   rawShareText?: string;          // Raw text/title from Android Share Sheet
   quickNote?: string;             // Optional 1-tap tag/note added on capture
   thumbnailUrl?: string;          // Extracted og:image URL or base64 image data
-  noteContent?: string;           // Full raw note or markdown text
+  noteContent?: string;           // Full raw note, markdown, or extracted document text
   isMarkdown?: boolean;           // True if user note is in markdown format
+  fileMeta?: FileMeta;            // Metadata for uploaded/shared files (PDF, MD, JSON, etc.)
 
-  // 2. AI-Structured Metadata (Validated JSON from Gemini)
+  // 2. AI-Structured Metadata (Validated JSON from Gemini/Gemma)
   meta?: LibraryItemMeta;
 }
 

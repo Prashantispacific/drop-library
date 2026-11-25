@@ -1,5 +1,6 @@
 import type { LibraryItemMeta, PlatformType, UnfurlResult } from '../types/library';
 import { GeminiMetaSchema } from '../types/schema';
+import { distillTextForLlm } from '../utils/textDistiller';
 
 export interface CustomAiInput {
   platform: PlatformType;
@@ -190,10 +191,12 @@ export async function enrichWithCustomAi(
     }
   }
 
+  const distilled = input.rawShareText ? distillTextForLlm(input.rawShareText, 4500) : null;
+
   const promptText = `Content details:
 - Platform: ${input.platform}
 - URL: ${input.url || 'None'}
-- Raw Note / Content: ${input.rawShareText ? input.rawShareText.slice(0, 3000) : 'None'}
+- Raw Note / Content: ${distilled ? distilled.distilledText : 'None'}
 - User Intent Tag: ${input.quickNote || 'None'}
 - Page Title: ${input.unfurlData?.title || 'None'}
 - Description: ${input.unfurlData?.description || 'None'}

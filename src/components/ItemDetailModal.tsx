@@ -6,6 +6,7 @@ import { MarkdownViewer } from './MarkdownViewer';
 import { openExternalUrl, registerBackButtonHandler, triggerHaptic } from '../native/bridge';
 import { queueWorker } from '../services/queueWorker';
 import { storage } from '../services/storage';
+import { formatFileSize } from '../utils/file';
 import {
   X,
   ExternalLink,
@@ -207,19 +208,22 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               )}
             </div>
 
-            {/* Note & Markdown Reader / Editor */}
-            {isTextOrNote && (
-              <div className="rounded-xl bg-black/40 border border-white/[0.08] p-3.5 space-y-2">
-                <MarkdownViewer
-                  content={item.noteContent || item.rawShareText || ''}
-                  isEditable={true}
-                  onSave={handleSaveNote}
-                />
+            {/* Attached File Metadata Banner (PDF / Document) */}
+            {item.fileMeta && (
+              <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 px-3.5 py-2.5 flex items-center justify-between text-xs">
+                <span className="font-medium text-blue-200 truncate">
+                  {item.fileMeta.fileName}
+                </span>
+                <span className="text-[11px] text-blue-300/80 flex-shrink-0 ml-2">
+                  {formatFileSize(item.fileMeta.fileSize)}
+                  {item.fileMeta.pageCount ? ` · ${item.fileMeta.pageCount} pages` : ''}
+                  {item.fileMeta.wordCount ? ` · ${item.fileMeta.wordCount.toLocaleString()} words` : ''}
+                </span>
               </div>
             )}
 
-            {/* TL;DR Summary (Only when distinct from note) */}
-            {!isTextOrNote && (
+            {/* TL;DR Summary (Show for links, images, and uploaded files) */}
+            {(!isTextOrNote || Boolean(item.fileMeta)) && (
               <div className="rounded-xl bg-white/[0.03] border border-white/[0.08] p-3.5 space-y-1">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400">
                   TL;DR
@@ -227,6 +231,18 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
                 <p className="text-xs text-neutral-200 leading-relaxed">
                   {tldr}
                 </p>
+              </div>
+            )}
+
+            {/* Note & Markdown Reader / Editor */}
+            {isTextOrNote && (
+              <div className="rounded-xl bg-black/40 border border-white/[0.08] p-3.5 space-y-2">
+                <MarkdownViewer
+                  key={item.id}
+                  content={item.noteContent || item.rawShareText || ''}
+                  isEditable={true}
+                  onSave={handleSaveNote}
+                />
               </div>
             )}
 

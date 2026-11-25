@@ -60,6 +60,14 @@ export const GeminiMetaSchema = z.object({
   estimatedReadMinutes: z.number().int().nonnegative().optional(),
 });
 
+export const FileMetaSchema = z.object({
+  fileName: z.string(),
+  mimeType: z.string(),
+  fileSize: z.number().nonnegative(),
+  pageCount: z.number().int().nonnegative().optional(),
+  wordCount: z.number().int().nonnegative().optional(),
+});
+
 export const LibraryItemSchema = z.object({
   id: z.string(),
   schemaVersion: z.literal(1),
@@ -75,13 +83,14 @@ export const LibraryItemSchema = z.object({
   thumbnailUrl: z.string().optional(),
   noteContent: z.string().optional(),
   isMarkdown: z.boolean().optional(),
+  fileMeta: FileMetaSchema.optional(),
   meta: GeminiMetaSchema.optional(),
 });
 
 export const UserSettingsSchema = z.object({
   aiProvider: z.enum(['gemini', 'custom']).default('gemini'),
   geminiApiKey: z.string().default(''),
-  geminiModel: z.string().default('gemini-3.5-flash-lite'),
+  geminiModel: z.string().default('gemma-3-27b-it'),
   geminiBaseUrl: z.string().default(''),
   savedGeminiModels: z.array(z.string()).default([]),
   customApiUrl: z.string().default(''),

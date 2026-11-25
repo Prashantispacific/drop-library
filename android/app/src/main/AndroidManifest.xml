@@ -15,6 +15,7 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
 
             <intent-filter>
@@ -23,25 +24,38 @@
             </intent-filter>
 
             <!-- Accept incoming text and links (Instagram reels, YouTube, blogs, quotes) -->
-            <intent-filter>
+            <intent-filter android:priority="999">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/*" />
             </intent-filter>
 
             <!-- Accept incoming single screenshot or image share -->
-            <intent-filter>
+            <intent-filter android:priority="999">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
             </intent-filter>
 
             <!-- Accept multiple images -->
-            <intent-filter>
+            <intent-filter android:priority="999">
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
             </intent-filter>
+
+            <!-- Accept shared PDF and any document/file (WhatsApp-like universal share availability) -->
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+
+            <!-- Link Android Sharing Shortcuts for Direct Share top-row priority -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
 
         </activity>
 

@@ -1,4 +1,4 @@
-import type { LibraryItem, PlatformType } from '../types/library';
+import type { FileMeta, LibraryItem, PlatformType } from '../types/library';
 import { storage } from './storage';
 import { fetchUnfurl } from './unfurlClient';
 import { enrichWithGemini, createFallbackMeta } from './gemini';
@@ -56,6 +56,7 @@ class QueueWorker {
     thumbnailUrl?: string;
     noteContent?: string;
     isMarkdown?: boolean;
+    fileMeta?: FileMeta;
   }): Promise<LibraryItem> {
     const rawText = input.rawText?.trim() || '';
     let targetUrl = input.url?.trim() || '';
@@ -101,6 +102,7 @@ class QueueWorker {
       thumbnailUrl: input.thumbnailUrl,
       noteContent: input.noteContent || (platform === 'text' ? rawText : undefined),
       isMarkdown: isMd,
+      fileMeta: input.fileMeta,
     };
 
     // 1. Immediately persist offline to IndexedDB

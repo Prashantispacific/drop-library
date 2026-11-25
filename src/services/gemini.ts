@@ -3,6 +3,7 @@ import type { LibraryItemMeta, PlatformType, UnfurlResult } from '../types/libra
 import { GeminiMetaSchema } from '../types/schema';
 import { storage } from './storage';
 import { enrichWithCustomAi } from './customAi';
+import { distillTextForLlm } from '../utils/textDistiller';
 
 export interface EnrichInput {
   platform: PlatformType;
@@ -14,39 +15,101 @@ export interface EnrichInput {
   unfurlData?: Partial<UnfurlResult>;
 }
 
+const DEFAULT_GEMMA_MODEL = 'gemma-3-27b-it';
+
 /**
- * Builds the multimodal content payload for the Gemini SDK.
- * Includes thumbnail base64 as inlineData if available to read on-screen hook text.
+ * Checks whether the target model is an open-weight Gemma model hosted on Gemini API.
+ * Per official ai.google.dev docs, Gemma models do not support responseMimeType/responseSchema
+ * or systemInstruction in GenerateContentConfig.
  */
-function buildGeminiContents(input: EnrichInput) {
+function isGemmaModel(modelName: string): boolean {
+  return /^gemma-/i.test(modelName.trim());
+}
+
+/**
+ * Gemma 3 1B and Gemma 2 are text-only; Gemma 3 (4B/12B/27B) and Gemma 4 support multimodal images.
+ */
+function isTextOnlyModel(modelName: string): boolean {
+  const m = modelName.trim().toLowerCase();
+  return m.startsWith('gemma-3-1b') || m.startsWith('gemma-2');
+}
+
+/**
+ * Robust JSON extractor for Gemma / reasoning models (handles <think> blocks and ```json fences).
+ */
+function extractJsonFromText(rawText: string): unknown {
+  let clean = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+  const fenceMatch = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (fenceMatch) {
+    clean = fenceMatch[1].trim();
+  }
+
+  try {
+    return JSON.parse(clean);
+  } catch {
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      return JSON.parse(clean.slice(firstBrace, lastBrace + 1));
+    }
+    throw new Error(`Failed to parse AI output as JSON: ${clean.slice(0, 150)}`);
+  }
+}
+
+/**
+ * Builds the multimodal content payload for the Gemini / Gemma SDK.
+ * Uses token-efficient local distillation for long PDFs/documents.
+ */
+function buildGeminiContents(
+  input: EnrichInput,
+  options: { includeJsonPrompt: boolean; allowImage: boolean }
+) {
   const parts: Array<
     | { text: string }
     | { inlineData: { mimeType: string; data: string } }
   > = [];
 
-  // 1. Pass image inlineData if available (from unfurl thumbnail, imageBase64, or data: URL)
-  let base64Data: string | undefined = input.imageBase64 || input.unfurlData?.thumbnailBase64;
-  let mimeType = 'image/jpeg';
+  // 1. Pass image inlineData if available and model supports vision
+  if (options.allowImage) {
+    let base64Data: string | undefined = input.imageBase64 || input.unfurlData?.thumbnailBase64;
+    let mimeType = 'image/jpeg';
 
-  if (!base64Data && input.thumbnailUrl?.startsWith('data:')) {
-    const match = input.thumbnailUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (match) {
-      mimeType = match[1];
-      base64Data = match[2];
+    if (!base64Data && input.thumbnailUrl?.startsWith('data:')) {
+      const match = input.thumbnailUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        mimeType = match[1];
+        base64Data = match[2];
+      }
     }
-  }
 
-  if (base64Data) {
-    parts.push({
-      inlineData: {
-        mimeType,
-        data: base64Data,
-      },
-    });
+    if (base64Data) {
+      parts.push({
+        inlineData: {
+          mimeType,
+          data: base64Data,
+        },
+      });
+    }
   }
 
   const isTextNote = input.platform === 'text';
   const isImage = input.platform === 'image';
+  const distilled = input.rawShareText ? distillTextForLlm(input.rawShareText, 4500) : null;
+
+  const jsonContractSuffix = options.includeJsonPrompt
+    ? `\n\nCRITICAL OUTPUT FORMAT:
+Return ONLY a single valid JSON object (no markdown commentary outside JSON) matching this exact schema:
+{
+  "title": "string (max 70 chars)",
+  "tldr": "string (1-2 punchy sentences)",
+  "category": "reel" | "article" | "essay" | "tool" | "quote" | "inspo",
+  "tags": ["tag1", "tag2", "tag3"],
+  "searchSynonyms": ["synonym1", "synonym2", "synonym3", "synonym4", "synonym5"],
+  "authorOrHandle": "string (optional)",
+  "estimatedReadMinutes": ${distilled?.estimatedReadMinutes ?? 2}
+}`
+    : '';
 
   const promptText = `
 You are the AI Librarian for "Drop Library", an ultra-minimalist personal knowledge vault.
@@ -55,7 +118,7 @@ Analyze the provided content and extract strictly structured metadata.
 Input details:
 - Platform: ${input.platform}
 - URL: ${input.url || 'None'}
-- Raw Note / Text Content: ${input.rawShareText ? input.rawShareText.slice(0, 3000) : 'None'}
+- Raw Note / Document Content: ${distilled ? distilled.distilledText : 'None'}
 - User Intent Tag: ${input.quickNote || 'None'}
 - Extracted Page Title: ${input.unfurlData?.title || 'None'}
 - Extracted Description / Caption: ${input.unfurlData?.description || 'None'}
@@ -64,12 +127,12 @@ Input details:
 INSTRUCTIONS FOR METADATA EXTRACTION:
 ${
   isTextNote
-    ? `The content is a personal note, code snippet, or Markdown document created by the user. Do NOT invent a fake narrative.
-1. Title: Use the first heading (# Title) or the first line/phrase of the note (max 70 chars).
-2. TLDR: Exactly 1–2 crisp sentences capturing what the note or quote covers. (The user's original note text is kept in full separately).
-3. Category: Choose "quote", "essay", "inspo", or "tool".
-4. Tags: 3 to 5 lowercase normalized tags categorizing this note (e.g. ["ideas", "markdown", "architecture"]).
-5. Search Synonyms: 5 to 8 conceptual synonyms and search terms that will help find this note in fuzzy search.`
+    ? `The content is a personal note, document, PDF, code snippet, or Markdown file created or saved by the user. Do NOT invent a fake narrative.
+1. Title: Use the first heading (# Title), document title, or first line/phrase (max 70 chars).
+2. TLDR: Exactly 1–2 crisp sentences capturing what the note or document covers.
+3. Category: Choose "quote", "essay", "inspo", "tool", or "article".
+4. Tags: 3 to 5 lowercase normalized tags categorizing this note/document (e.g. ["ideas", "markdown", "architecture"]).
+5. Search Synonyms: 5 to 8 conceptual synonyms and search terms that will help find this item in fuzzy search.`
     : isImage
     ? `The content is an image or screenshot uploaded by the user.
 1. Title: A concise, descriptive title describing what is depicted or shown in the image (max 70 chars).
@@ -89,7 +152,7 @@ ${
 6. AuthorOrHandle: The creator's name, handle, or domain (e.g. "@karpathy", "Paul Graham", "Fireship").
 7. EstimatedReadMinutes: Approximate reading/watching duration in minutes.
 8. If an image thumbnail was provided, transcribe and integrate any hook text, diagrams, or subtitles burned onto the cover image.`
-}
+}${jsonContractSuffix}
 `;
 
   parts.push({ text: promptText });
@@ -149,11 +212,12 @@ function cleanBaseUrl(url?: string): string | undefined {
 
 /**
  * Executes a structured content generation call with GoogleGenAI SDK.
+ * Automatically adapts config for Gemma models (which disallow responseMimeType/responseSchema).
  */
 async function callGemini(
   apiKey: string,
   modelName: string,
-  contents: ReturnType<typeof buildGeminiContents>,
+  input: EnrichInput,
   baseUrl?: string
 ): Promise<string> {
   const httpOptions: { apiVersion: string; baseUrl?: string } = {
@@ -169,19 +233,31 @@ async function callGemini(
     httpOptions,
   });
 
+  const gemma = isGemmaModel(modelName);
+  const contents = buildGeminiContents(input, {
+    includeJsonPrompt: gemma,
+    allowImage: !isTextOnlyModel(modelName),
+  });
+
+  const config = gemma
+    ? {
+        temperature: 0.2,
+      }
+    : {
+        responseMimeType: 'application/json',
+        responseSchema: GEMINI_RESPONSE_SCHEMA,
+        temperature: 0.2,
+      };
+
   const response = await ai.models.generateContent({
     model: modelName,
     contents,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: GEMINI_RESPONSE_SCHEMA,
-      temperature: 0.2, // Low temperature for consistent, factual structuring
-    },
+    config,
   });
 
   const responseText = response.text;
   if (!responseText) {
-    throw new Error('Empty response received from Gemini');
+    throw new Error('Empty response received from AI model');
   }
   return responseText;
 }
@@ -202,19 +278,18 @@ export async function enrichWithGemini(input: EnrichInput): Promise<LibraryItemM
     );
   }
 
-  // Pipeline 1: Google Gemini (with custom proxy & resilient model fallbacks)
+  // Pipeline 1: Google Gemini / Gemma (with custom proxy & resilient model fallbacks)
   const executeGeminiPipeline = async (): Promise<LibraryItemMeta> => {
     const apiKey = settings.geminiApiKey?.trim();
     if (!apiKey) throw new Error('MISSING_GEMINI_KEY');
 
-    const primaryModel = settings.geminiModel || 'gemini-3.5-flash-lite';
+    const primaryModel = settings.geminiModel || DEFAULT_GEMMA_MODEL;
     const customBaseUrl = settings.geminiBaseUrl?.trim();
-    const contents = buildGeminiContents(input);
 
     let responseText: string | undefined;
 
     try {
-      responseText = await callGemini(apiKey, primaryModel, contents, customBaseUrl);
+      responseText = await callGemini(apiKey, primaryModel, input, customBaseUrl);
     } catch (primaryErr: unknown) {
       console.warn(
         `[Gemini] Primary request failed (model: ${primaryModel}, url: ${customBaseUrl || 'default'}):`,
@@ -225,22 +300,25 @@ export async function enrichWithGemini(input: EnrichInput): Promise<LibraryItemM
       if (customBaseUrl) {
         console.info(`[Gemini] Custom proxy failed. Falling back to official Google AI Studio endpoint...`);
         try {
-          responseText = await callGemini(apiKey, primaryModel, contents, undefined);
+          responseText = await callGemini(apiKey, primaryModel, input, undefined);
         } catch (officialErr) {
           console.warn(`[Gemini] Official endpoint also failed:`, officialErr);
         }
       }
 
-      // Retry 2: Resilient model fallback to gemini-3.5-flash-lite if primary model was different
-      if (!responseText && primaryModel !== 'gemini-3.5-flash-lite') {
-        const fallbackModel = 'gemini-3.5-flash-lite';
+      // Retry 2: Resilient model fallback (try gemma-3-12b-it, then gemini-3.5-flash-lite)
+      const fallbackCandidates = [DEFAULT_GEMMA_MODEL, 'gemma-3-12b-it', 'gemini-3.5-flash-lite'].filter(
+        (m) => m !== primaryModel
+      );
+      for (const fallbackModel of fallbackCandidates) {
+        if (responseText) break;
         console.info(`[Gemini] Attempting fallback model: ${fallbackModel}...`);
         try {
-          responseText = await callGemini(apiKey, fallbackModel, contents, customBaseUrl);
+          responseText = await callGemini(apiKey, fallbackModel, input, customBaseUrl);
         } catch {
           if (customBaseUrl) {
             try {
-              responseText = await callGemini(apiKey, fallbackModel, contents, undefined);
+              responseText = await callGemini(apiKey, fallbackModel, input, undefined);
             } catch {
               // Ignore
             }
@@ -251,13 +329,7 @@ export async function enrichWithGemini(input: EnrichInput): Promise<LibraryItemM
       if (!responseText) throw primaryErr;
     }
 
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(responseText);
-    } catch {
-      throw new Error(`Failed to parse Gemini output as JSON: ${responseText.slice(0, 100)}`);
-    }
-
+    const parsedJson = extractJsonFromText(responseText);
     const validated = GeminiMetaSchema.parse(parsedJson);
     return {
       title: validated.title,

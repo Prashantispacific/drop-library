@@ -9,7 +9,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   // BYOK model: Never hardcode or inline API keys into the client bundle
   aiProvider: 'gemini',
   geminiApiKey: '',
-  geminiModel: 'gemini-3.5-flash-lite',
+  geminiModel: 'gemma-3-27b-it',
   geminiBaseUrl: '',
   savedGeminiModels: [],
   customApiUrl: '',
@@ -32,6 +32,20 @@ class StorageService {
   private settingsListeners: Set<SettingsChangeListener> = new Set();
   private cachedItems: LibraryItem[] | null = null;
   private cachedSettings: UserSettings | null = null;
+  private writeQueue: Promise<unknown> = Promise.resolve();
+
+  /**
+   * Serializes IndexedDB read-modify-write mutations so concurrent drops
+   * and background queue updates never clobber each other.
+   */
+  private enqueueWrite<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.writeQueue.then(fn, fn);
+    this.writeQueue = next.then(
+      () => undefined,
+      () => undefined
+    );
+    return next;
+  }
 
   /**
    * Subscribe to library items changes.
@@ -113,19 +127,21 @@ class StorageService {
    * Saves or updates an item immediately in IndexedDB.
    */
   async saveItem(item: LibraryItem): Promise<void> {
-    const items = await this.getAllItems();
-    const existingIndex = items.findIndex((i) => i.id === item.id);
-    let updated: LibraryItem[];
+    return this.enqueueWrite(async () => {
+      const items = await this.getAllItems();
+      const existingIndex = items.findIndex((i) => i.id === item.id);
+      let updated: LibraryItem[];
 
-    if (existingIndex >= 0) {
-      updated = [...items];
-      updated[existingIndex] = { ...item, updatedAt: Date.now() };
-    } else {
-      updated = [item, ...items];
-    }
+      if (existingIndex >= 0) {
+        updated = [...items];
+        updated[existingIndex] = { ...item, updatedAt: Date.now() };
+      } else {
+        updated = [item, ...items];
+      }
 
-    await set(ITEMS_KEY, updated);
-    this.notifyItems(updated);
+      await set(ITEMS_KEY, updated);
+      this.notifyItems(updated);
+    });
   }
 
   /**
@@ -135,39 +151,45 @@ class StorageService {
     id: string,
     updates: Partial<Omit<LibraryItem, 'id' | 'createdAt'>>
   ): Promise<LibraryItem | null> {
-    const items = await this.getAllItems();
-    const index = items.findIndex((i) => i.id === id);
-    if (index === -1) return null;
+    return this.enqueueWrite(async () => {
+      const items = await this.getAllItems();
+      const index = items.findIndex((i) => i.id === id);
+      if (index === -1) return null;
 
-    const updatedItem: LibraryItem = {
-      ...items[index],
-      ...updates,
-      updatedAt: Date.now(),
-    };
+      const updatedItem: LibraryItem = {
+        ...items[index],
+        ...updates,
+        updatedAt: Date.now(),
+      };
 
-    const newItems = [...items];
-    newItems[index] = updatedItem;
-    await set(ITEMS_KEY, newItems);
-    this.notifyItems(newItems);
-    return updatedItem;
+      const newItems = [...items];
+      newItems[index] = updatedItem;
+      await set(ITEMS_KEY, newItems);
+      this.notifyItems(newItems);
+      return updatedItem;
+    });
   }
 
   /**
    * Deletes an item by ID.
    */
   async deleteItem(id: string): Promise<void> {
-    const items = await this.getAllItems();
-    const updated = items.filter((i) => i.id !== id);
-    await set(ITEMS_KEY, updated);
-    this.notifyItems(updated);
+    return this.enqueueWrite(async () => {
+      const items = await this.getAllItems();
+      const updated = items.filter((i) => i.id !== id);
+      await set(ITEMS_KEY, updated);
+      this.notifyItems(updated);
+    });
   }
 
   /**
    * Clears the entire library.
    */
   async clearAllItems(): Promise<void> {
-    await del(ITEMS_KEY);
-    this.notifyItems([]);
+    return this.enqueueWrite(async () => {
+      await del(ITEMS_KEY);
+      this.notifyItems([]);
+    });
   }
 
   /**

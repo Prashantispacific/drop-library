@@ -26,6 +26,14 @@
     min-height: 100dvh;
     -webkit-tap-highlight-color: transparent;
   }
+
+  /* Ensure inputs/textareas are always selectable/editable on Android WebView even when body has select-none */
+  input,
+  textarea {
+    user-select: text;
+    -webkit-user-select: text;
+    touch-action: manipulation;
+  }
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */

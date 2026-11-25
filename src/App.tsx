@@ -4,8 +4,13 @@ import { storage } from './services/storage';
 import { queueWorker } from './services/queueWorker';
 import { SearchEngine } from './services/search';
 import { coldStartBuffer, type IncomingSharePayload } from './native/coldStartBuffer';
-import { setupStatusBar, triggerHaptic, returnToPreviousApp } from './native/bridge';
-import { readSharedFileAsBase64 } from './utils/file';
+import { setupStatusBar, triggerHaptic, returnToPreviousApp, openExternalUrl } from './native/bridge';
+import {
+  readSharedFileAsBase64,
+  readSharedFileAsBuffer,
+  extractTextFromPdfBuffer,
+} from './utils/file';
+import { cleanExtractedText } from './utils/textDistiller';
 
 import { QuickDropBar } from './components/QuickDropBar';
 import { FilterBar } from './components/FilterBar';
@@ -13,9 +18,9 @@ import { LibraryCard } from './components/LibraryCard';
 import { SavedOverlay } from './components/SavedOverlay';
 import { ItemDetailModal } from './components/ItemDetailModal';
 import { SettingsModal } from './components/SettingsModal';
+import { LegalModal, type LegalTab } from './components/LegalModal';
 
 import {
-  Layers,
   Settings as SettingsIcon,
   RotateCw,
   Sparkles,
@@ -32,11 +37,18 @@ export default function App() {
     status: 'all',
   });
 
-  const [selectedItem, setSelectedItem] = useState<LibraryItem | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [overlayItem, setOverlayItem] = useState<LibraryItem | null>(null);
   const [isFromShareSheet, setIsFromShareSheet] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<LegalTab | null>(null);
   const [isWorkerActive, setIsWorkerActive] = useState(false);
+
+  // Derive live selectedItem from items so background enrichment & edits update immediately
+  const selectedItem = useMemo(
+    () => (selectedItemId ? items.find((i) => i.id === selectedItemId) ?? null : null),
+    [items, selectedItemId]
+  );
 
   // Initialize search engine
   const searchEngine = useMemo(() => new SearchEngine(items), [items]);
@@ -72,18 +84,62 @@ export default function App() {
       rawText = payload.title + (rawText ? ` - ${rawText}` : '');
     }
 
-    // Single or multiple image file shares
+    // Single or multiple file shares (images, PDFs, text/markdown documents)
     let platform: LibraryItem['platform'] | undefined;
     let thumbnailUrl: string | undefined;
+    let noteContent: string | undefined;
+    let fileMeta: LibraryItem['fileMeta'] | undefined;
 
     if (payload.files && payload.files.length > 0) {
       const firstFile = payload.files[0];
-      if (firstFile.mimeType.startsWith('image/')) {
+      const mime = (firstFile.mimeType || '').toLowerCase();
+      const lowerName = (firstFile.name || '').toLowerCase();
+
+      if (mime.startsWith('image/')) {
         platform = 'image';
         try {
           thumbnailUrl = await readSharedFileAsBase64(firstFile.uri, firstFile.mimeType);
         } catch (e) {
           console.warn('[App] Failed to read shared image file:', e);
+        }
+      } else if (mime === 'application/pdf' || lowerName.endsWith('.pdf')) {
+        platform = 'text';
+        try {
+          const buffer = await readSharedFileAsBuffer(firstFile.uri);
+          if (buffer) {
+            const { text, pageCount } = await extractTextFromPdfBuffer(buffer);
+            noteContent = text || `[PDF "${firstFile.name}" (${pageCount} pages) contains no selectable text]`;
+            const wordCount = noteContent.split(/\s+/).filter(Boolean).length;
+            fileMeta = {
+              fileName: firstFile.name || 'shared.pdf',
+              mimeType: 'application/pdf',
+              fileSize: buffer.byteLength,
+              pageCount,
+              wordCount,
+            };
+            if (!rawText) rawText = firstFile.name || 'Shared PDF';
+          }
+        } catch (e) {
+          console.warn('[App] Failed to parse shared PDF:', e);
+        }
+      } else if (mime.startsWith('text/') || /\.(md|txt|json|csv|log)$/i.test(lowerName)) {
+        platform = 'text';
+        try {
+          const buffer = await readSharedFileAsBuffer(firstFile.uri);
+          if (buffer) {
+            const decoded = cleanExtractedText(new TextDecoder().decode(buffer));
+            noteContent = decoded;
+            const wordCount = decoded ? decoded.split(/\s+/).filter(Boolean).length : 0;
+            fileMeta = {
+              fileName: firstFile.name || 'shared.txt',
+              mimeType: firstFile.mimeType || 'text/plain',
+              fileSize: buffer.byteLength,
+              wordCount,
+            };
+            if (!rawText) rawText = firstFile.name || 'Shared Document';
+          }
+        } catch (e) {
+          console.warn('[App] Failed to read shared text file:', e);
         }
       }
     }
@@ -94,6 +150,8 @@ export default function App() {
         url: targetUrl,
         platform,
         thumbnailUrl,
+        noteContent,
+        fileMeta,
       });
 
       const currentSettings = await storage.getSettings();
@@ -177,9 +235,11 @@ export default function App() {
       >
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-xl bg-white/[0.08] border border-white/[0.1] flex items-center justify-center text-white shadow-sm">
-              <Layers className="w-4 h-4" />
-            </div>
+            <img
+              src="/icon.svg"
+              alt="Drop Library"
+              className="w-8 h-8 rounded-xl border border-cyan-400/25 shadow-sm shadow-cyan-500/10"
+            />
             <div>
               <h1 className="text-sm font-semibold tracking-tight text-white flex items-center space-x-1.5">
                 <span>Drop Library</span>
@@ -259,7 +319,7 @@ export default function App() {
                 item={item}
                 onClick={() => {
                   triggerHaptic('light');
-                  setSelectedItem(item);
+                  setSelectedItemId(item.id);
                 }}
               />
             ))}
@@ -284,6 +344,36 @@ export default function App() {
         )}
       </main>
 
+      {/* Subtle Production Footer */}
+      <footer className="max-w-4xl mx-auto px-4 pb-8 pt-2 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-500">
+        <span>Made by Prashant</span>
+        <div className="flex items-center space-x-3">
+          <button
+            type="button"
+            onClick={() => setLegalModalTab('privacy')}
+            className="hover:text-neutral-300 transition-colors"
+          >
+            Privacy
+          </button>
+          <span className="text-neutral-700">·</span>
+          <button
+            type="button"
+            onClick={() => setLegalModalTab('terms')}
+            className="hover:text-neutral-300 transition-colors"
+          >
+            Terms
+          </button>
+          <span className="text-neutral-700">·</span>
+          <button
+            type="button"
+            onClick={() => openExternalUrl('https://github.com/Prashantispacific/drop-library')}
+            className="hover:text-neutral-300 transition-colors"
+          >
+            Open Source
+          </button>
+        </div>
+      </footer>
+
       {/* Instant Sub-2-Second Capture HUD Overlay */}
       <SavedOverlay
         item={overlayItem}
@@ -296,9 +386,9 @@ export default function App() {
       {/* Item Reader / Detail Drawer Modal */}
       <ItemDetailModal
         item={selectedItem}
-        onClose={() => setSelectedItem(null)}
+        onClose={() => setSelectedItemId(null)}
         onDeleted={() => {
-          setSelectedItem(null);
+          setSelectedItemId(null);
         }}
       />
 
@@ -307,6 +397,14 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         items={items}
+      />
+
+      {/* Privacy & Terms Modal */}
+      <LegalModal
+        isOpen={legalModalTab !== null}
+        activeTab={legalModalTab || 'privacy'}
+        onTabChange={setLegalModalTab}
+        onClose={() => setLegalModalTab(null)}
       />
     </div>
   );

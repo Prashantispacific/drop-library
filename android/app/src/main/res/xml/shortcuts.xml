@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Direct Share target for Android 10+ top-row Share Sheet priority (like WhatsApp) -->
+    <share-target android:targetClass="com.droplibrary.app.MainActivity">
+        <data android:mimeType="text/*" />
+        <data android:mimeType="image/*" />
+        <data android:mimeType="application/pdf" />
+        <data android:mimeType="*/*" />
+        <category android:name="com.droplibrary.app.category.DIRECT_SHARE" />
+    </share-target>
+</shortcuts>

@@ -170,12 +170,22 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({ item, onClick }) => {
             {title}
           </h3>
 
-          {/* Quick Intent Tag */}
-          {item.quickNote && (
-            <div className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[10px] font-medium mb-2">
-              <span>{item.quickNote}</span>
-            </div>
-          )}
+          {/* Quick Intent Tag & File Badge */}
+          <div className="flex flex-wrap items-center gap-1.5 mb-2">
+            {item.quickNote && (
+              <div className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[10px] font-medium">
+                <span>{item.quickNote}</span>
+              </div>
+            )}
+            {item.fileMeta && (
+              <div className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/25 text-blue-300 text-[10px] font-medium">
+                <span>
+                  {item.fileMeta.fileName.split('.').pop()?.toUpperCase() || 'FILE'}
+                  {item.fileMeta.pageCount ? ` · ${item.fileMeta.pageCount}p` : ''}
+                </span>
+              </div>
+            )}
+          </div>
 
           {/* TL;DR summary */}
           <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed mb-3">
