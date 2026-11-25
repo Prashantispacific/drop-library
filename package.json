@@ -1,6 +1,6 @@
 {
   "name": "drop-library",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Zero-friction personal knowledge & media vault for Android. Instant sub-2s capture for Instagram Reels, YouTube videos, articles, and notes with Gemini AI multimodal structuring and offline-first IndexedDB storage.",
   "keywords": [
     "android",
