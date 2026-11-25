@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { FilterState, ItemCategory, PlatformType, ItemStatus } from '../types/library';
 import { triggerHaptic } from '../native/bridge';
-import { Search, X } from 'lucide-react';
+import { Search, X, SlidersHorizontal } from 'lucide-react';
 
 interface FilterBarProps {
   filter: FilterState;
@@ -20,22 +20,27 @@ const CATEGORIES: Array<{ key: 'all' | ItemCategory; label: string }> = [
 ];
 
 const PLATFORMS: Array<{ key: 'all' | PlatformType; label: string }> = [
-  { key: 'all', label: 'All Platforms' },
+  { key: 'all', label: 'All Sources' },
   { key: 'instagram', label: 'Instagram' },
   { key: 'youtube', label: 'YouTube' },
   { key: 'web', label: 'Web' },
-  { key: 'text', label: 'Notes' },
+  { key: 'text', label: 'Notes & Files' },
   { key: 'image', label: 'Images' },
 ];
 
 const STATUSES: Array<{ key: 'all' | ItemStatus; label: string }> = [
-  { key: 'all', label: 'All' },
-  { key: 'enriched', label: 'Enriched' },
+  { key: 'all', label: 'Any' },
+  { key: 'enriched', label: 'Ready' },
   { key: 'pending', label: 'Pending' },
   { key: 'failed', label: 'Failed' },
 ];
 
 export const FilterBar: React.FC<FilterBarProps> = ({ filter, onChange, totalCount }) => {
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+
+  const hasSecondaryFilter = filter.platform !== 'all' || filter.status !== 'all';
+  const isSecondaryOpen = showMoreFilters || hasSecondaryFilter;
+
   const handleCategoryClick = (category: 'all' | ItemCategory) => {
     triggerHaptic('light');
     onChange({ ...filter, category });
@@ -52,30 +57,55 @@ export const FilterBar: React.FC<FilterBarProps> = ({ filter, onChange, totalCou
   };
 
   return (
-    <div className="w-full space-y-3 py-2">
-      {/* Search Input */}
-      <div className="relative">
-        <Search className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+    <div className="w-full space-y-2.5 pt-1">
+      {/* Search Input + Compact Filter Toggle */}
+      <div className="relative flex items-center">
+        <Search className="w-4 h-4 text-neutral-500 absolute left-3.5 pointer-events-none" />
         <input
           type="text"
           value={filter.searchQuery}
           onChange={(e) => onChange({ ...filter, searchQuery: e.target.value })}
-          placeholder={`Search ${totalCount} items (fuzzy title, tags, synonyms)...`}
-          className="w-full bg-[#141414] border border-white/[0.08] focus:border-white/20 focus:outline-none rounded-xl pl-10 pr-9 py-2 text-sm text-[#E2E2E2] placeholder-neutral-500 transition-colors"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
+          placeholder={`Search ${totalCount} items...`}
+          className="w-full bg-[#141414] border border-white/[0.07] focus:border-white/20 focus:outline-none rounded-xl pl-10 pr-16 py-2.5 text-base sm:text-sm text-[#E2E2E2] placeholder-neutral-500 transition-colors"
         />
-        {filter.searchQuery && (
+        <div className="absolute right-2 flex items-center space-x-1">
+          {filter.searchQuery && (
+            <button
+              type="button"
+              onClick={() => onChange({ ...filter, searchQuery: '' })}
+              className="p-1.5 rounded-lg text-neutral-400 hover:text-white transition-colors"
+              title="Clear search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => onChange({ ...filter, searchQuery: '' })}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+            onClick={() => {
+              triggerHaptic('light');
+              setShowMoreFilters(!showMoreFilters);
+            }}
+            className={`p-1.5 rounded-lg transition-colors relative ${
+              isSecondaryOpen
+                ? 'bg-white/12 text-white'
+                : 'text-neutral-500 hover:text-neutral-300'
+            }`}
+            title="Source & status filters"
           >
-            <X className="w-4 h-4" />
+            <SlidersHorizontal className="w-4 h-4" />
+            {hasSecondaryFilter && (
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-blue-400" />
+            )}
           </button>
-        )}
+        </div>
       </div>
 
-      {/* Horizontal Scrollable Category Pills */}
-      <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar pb-1">
+      {/* Category Pills */}
+      <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar pb-0.5">
         {CATEGORIES.map(({ key, label }) => {
           const isSelected = filter.category === key;
           return (
@@ -84,8 +114,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({ filter, onChange, totalCou
               onClick={() => handleCategoryClick(key)}
               className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 ${
                 isSelected
-                  ? 'bg-white text-black font-semibold shadow-sm'
-                  : 'bg-white/[0.04] text-neutral-400 hover:text-neutral-200 hover:bg-white/[0.08] border border-white/[0.06]'
+                  ? 'bg-white text-black font-semibold'
+                  : 'bg-white/[0.04] text-neutral-400 hover:text-neutral-200 hover:bg-white/[0.08]'
               }`}
             >
               {label}
@@ -94,46 +124,48 @@ export const FilterBar: React.FC<FilterBarProps> = ({ filter, onChange, totalCou
         })}
       </div>
 
-      {/* Secondary filter chips row: Platform & Status */}
-      <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar text-xs">
-        <div className="flex items-center space-x-1.5 flex-nowrap">
-          {PLATFORMS.map(({ key, label }) => {
-            const isSelected = filter.platform === key;
-            return (
-              <button
-                key={key}
-                onClick={() => handlePlatformClick(key)}
-                className={`px-2.5 py-0.5 rounded-md text-[11px] whitespace-nowrap transition-colors ${
-                  isSelected
-                    ? 'bg-neutral-800 text-white border border-neutral-700'
-                    : 'text-neutral-500 hover:text-neutral-300'
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+      {/* Collapsible Source & Status Row */}
+      {isSecondaryOpen && (
+        <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar pt-0.5 text-xs">
+          <div className="flex items-center space-x-1 flex-nowrap">
+            {PLATFORMS.map(({ key, label }) => {
+              const isSelected = filter.platform === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => handlePlatformClick(key)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] whitespace-nowrap transition-colors ${
+                    isSelected
+                      ? 'bg-white/[0.1] text-white font-medium'
+                      : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
 
-        <div className="flex items-center space-x-1 flex-nowrap border-l border-white/[0.08] pl-2">
-          {STATUSES.map(({ key, label }) => {
-            const isSelected = filter.status === key;
-            return (
-              <button
-                key={key}
-                onClick={() => handleStatusClick(key)}
-                className={`px-2 py-0.5 rounded text-[11px] whitespace-nowrap transition-colors ${
-                  isSelected
-                    ? 'text-white font-medium underline underline-offset-4'
-                    : 'text-neutral-600 hover:text-neutral-400'
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
+          <div className="flex items-center space-x-1 flex-nowrap border-l border-white/[0.08] pl-2">
+            {STATUSES.map(({ key, label }) => {
+              const isSelected = filter.status === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => handleStatusClick(key)}
+                  className={`px-2 py-1 rounded-lg text-[11px] whitespace-nowrap transition-colors ${
+                    isSelected
+                      ? 'text-white font-medium bg-white/[0.08]'
+                      : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -87,7 +87,7 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({ item, onClick }) => {
   return (
     <div
       onClick={onClick}
-      className="group relative rounded-2xl bg-[#121212] border border-white/[0.08] hover:border-white/20 transition-all duration-200 overflow-hidden cursor-pointer flex flex-col justify-between shadow-sm active:scale-[0.99]"
+      className="group relative rounded-2xl bg-[#121212] border border-white/[0.06] hover:border-white/15 transition-all duration-200 overflow-hidden cursor-pointer flex flex-col justify-between active:scale-[0.99]"
     >
       {/* Top Media / Thumbnail */}
       {(item.thumbnailUrl || item.platform === 'instagram' || item.platform === 'youtube' || item.platform === 'image') && (
@@ -170,46 +170,27 @@ export const LibraryCard: React.FC<LibraryCardProps> = ({ item, onClick }) => {
             {title}
           </h3>
 
-          {/* Quick Intent Tag & File Badge */}
-          <div className="flex flex-wrap items-center gap-1.5 mb-2">
-            {item.quickNote && (
-              <div className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[10px] font-medium">
-                <span>{item.quickNote}</span>
-              </div>
-            )}
-            {item.fileMeta && (
-              <div className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/25 text-blue-300 text-[10px] font-medium">
-                <span>
+          {/* Quick Intent Tag & File Badge (only when present) */}
+          {(item.quickNote || item.fileMeta) && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-2">
+              {item.quickNote && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 text-[10px] font-medium">
+                  {item.quickNote}
+                </span>
+              )}
+              {item.fileMeta && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-300 text-[10px] font-medium">
                   {item.fileMeta.fileName.split('.').pop()?.toUpperCase() || 'FILE'}
                   {item.fileMeta.pageCount ? ` · ${item.fileMeta.pageCount}p` : ''}
                 </span>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* TL;DR summary */}
           <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed mb-3">
             {tldr}
           </p>
-
-          {/* Tags */}
-          {meta?.tags && meta.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-3">
-              {meta.tags.slice(0, 3).map((tag) => (
-                <span
-                  key={tag}
-                  className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-neutral-400"
-                >
-                  #{tag}
-                </span>
-              ))}
-              {meta.tags.length > 3 && (
-                <span className="text-[10px] text-neutral-600 px-1">
-                  +{meta.tags.length - 3}
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Footer Meta Row */}

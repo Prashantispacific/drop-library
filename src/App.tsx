@@ -238,15 +238,11 @@ export default function App() {
             <img
               src="/icon.svg"
               alt="Drop Library"
-              className="w-8 h-8 rounded-xl border border-cyan-400/25 shadow-sm shadow-cyan-500/10"
+              className="w-8 h-8 rounded-xl border border-white/[0.12] shadow-sm"
             />
-            <div>
-              <h1 className="text-sm font-semibold tracking-tight text-white flex items-center space-x-1.5">
-                <span>Drop Library</span>
-                <span className="text-[10px] font-mono text-neutral-500 font-normal">v1.0</span>
-              </h1>
-              <p className="text-[10px] text-neutral-400">Zero-friction mobile vault</p>
-            </div>
+            <h1 className="text-base font-semibold tracking-tight text-white">
+              Drop Library
+            </h1>
           </div>
 
           <div className="flex items-center space-x-2">
