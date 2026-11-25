@@ -177,6 +177,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   items,
 }) => {
   const [_settings, setSettings] = useState<UserSettings | null>(null);
+  const [activeTab, setActiveTab] = useState<'ai' | 'preferences' | 'vault'>('ai');
   const [aiProvider, setAiProvider] = useState<'gemini' | 'custom'>('gemini');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
@@ -453,20 +454,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-lg max-h-[92vh] overflow-y-auto no-scrollbar rounded-2xl bg-[#121212] border border-white/[0.08] shadow-2xl text-[#E2E2E2] flex flex-col"
       >
-        {/* Header */}
-        <div className="p-4 border-b border-white/[0.08] flex items-center justify-between sticky top-0 bg-[#121212]/90 backdrop-blur-md z-10">
-          <div className="flex items-center space-x-2">
-            <span className="font-semibold text-base text-white">Settings & Vault</span>
+        {/* Header + Segmented Navigation Tabs */}
+        <div className="px-4 pt-4 pb-3 border-b border-white/[0.08] sticky top-0 bg-[#121212]/95 backdrop-blur-md z-10 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-base text-white">Settings</span>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-white/[0.08] text-neutral-400 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-white/[0.08] text-neutral-400 hover:text-white transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+            {(
+              [
+                { key: 'ai', label: 'AI Engine' },
+                { key: 'preferences', label: 'Preferences' },
+                { key: 'vault', label: 'Vault' },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => {
+                  triggerHaptic('light');
+                  setActiveTab(tab.key);
+                }}
+                className={`py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === tab.key
+                    ? 'bg-white text-black shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <form onSubmit={handleSave} className="p-5 space-y-6">
+        <form onSubmit={handleSave} className="p-5 space-y-5">
+          {activeTab === 'ai' && (
+            <div className="space-y-5">
           {/* AI Provider Mode Selector */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -1133,6 +1162,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+            </div>
+          )}
+
+          {activeTab === 'preferences' && (
+            <div className="space-y-5">
           {/* Unfurl Server Endpoint */}
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-neutral-300 flex items-center space-x-1.5">
@@ -1280,8 +1314,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 />
               </button>
             </div>
+            </div>
           </div>
+          )}
 
+          {activeTab === 'vault' && (
+            <div className="space-y-5">
           {/* Offline Queue Status & Trigger */}
           <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-2">
             <div className="flex items-center justify-between text-xs">
@@ -1347,6 +1385,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span>Clear Entire Library</span>
             </button>
           </div>
+            </div>
+          )}
 
           {/* Feedback banner */}
           {feedbackMessage && (

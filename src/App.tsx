@@ -219,7 +219,7 @@ export default function App() {
 
   return (
     <div
-      className={`min-h-screen min-h-[100dvh] transition-colors duration-200 ${
+      className={`min-h-screen min-h-[100dvh] flex flex-col transition-colors duration-200 ${
         isTrueBlack ? 'bg-black text-[#E2E2E2]' : 'bg-[#0A0A0A] text-[#E2E2E2]'
       }`}
     >
@@ -285,12 +285,7 @@ export default function App() {
       </header>
 
       {/* Main Container */}
-      <main
-        className="max-w-4xl mx-auto px-4 py-4 space-y-4"
-        style={{
-          paddingBottom: 'calc(max(env(safe-area-inset-bottom, 0px), 0px) + 5rem)',
-        }}
-      >
+      <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-4 space-y-3.5">
         {/* Quick Drop Bar */}
         <QuickDropBar
           onItemDropped={(item) => {
@@ -340,33 +335,40 @@ export default function App() {
         )}
       </main>
 
-      {/* Subtle Production Footer */}
-      <footer className="max-w-4xl mx-auto px-4 pb-8 pt-2 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-500">
-        <span>Made by Prashant</span>
-        <div className="flex items-center space-x-3">
-          <button
-            type="button"
-            onClick={() => setLegalModalTab('privacy')}
-            className="hover:text-neutral-300 transition-colors"
-          >
-            Privacy
-          </button>
-          <span className="text-neutral-700">·</span>
-          <button
-            type="button"
-            onClick={() => setLegalModalTab('terms')}
-            className="hover:text-neutral-300 transition-colors"
-          >
-            Terms
-          </button>
-          <span className="text-neutral-700">·</span>
-          <button
-            type="button"
-            onClick={() => openExternalUrl('https://github.com/Prashantispacific/drop-library')}
-            className="hover:text-neutral-300 transition-colors"
-          >
-            Open Source
-          </button>
+      {/* Clean Production Footer */}
+      <footer
+        className="mt-auto w-full border-t border-white/[0.06] px-4 pt-4"
+        style={{
+          paddingBottom: 'calc(max(env(safe-area-inset-bottom, 0px), 0px) + 1.25rem)',
+        }}
+      >
+        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-neutral-500">
+          <span className="text-neutral-400 font-medium">Made by Prashant</span>
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={() => setLegalModalTab('privacy')}
+              className="hover:text-neutral-200 transition-colors py-1"
+            >
+              Privacy
+            </button>
+            <span className="text-neutral-700">·</span>
+            <button
+              type="button"
+              onClick={() => setLegalModalTab('terms')}
+              className="hover:text-neutral-200 transition-colors py-1"
+            >
+              Terms
+            </button>
+            <span className="text-neutral-700">·</span>
+            <button
+              type="button"
+              onClick={() => openExternalUrl('https://github.com/Prashantispacific/drop-library')}
+              className="hover:text-neutral-200 transition-colors py-1"
+            >
+              Open Source
+            </button>
+          </div>
         </div>
       </footer>
 
